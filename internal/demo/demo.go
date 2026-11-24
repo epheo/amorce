@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/report"
 )
 
 type System struct {
@@ -138,3 +139,19 @@ func (s *System) Install(ctx context.Context, req engine.InstallRequest, ev func
 }
 
 func (s *System) Reboot() error { return fmt.Errorf("demo: no restart") }
+
+// Clusters hears one first machine, the mockups' srv-01.
+func (s *System) Clusters(ctx context.Context, found func(engine.Cluster)) {
+	time.Sleep(time.Second)
+	found(engine.Cluster{Site: "lab", Name: "srv-01", Address: "10.20.120.11", Purpose: "storage", Open: true})
+}
+
+// Admit takes any six words.
+func (s *System) Admit(ctx context.Context, address string, words []string, me report.Report) (engine.Admission, error) {
+	time.Sleep(time.Second)
+	if len(words) != 6 {
+		return engine.Admission{}, fmt.Errorf("Those are not the words on its screen.")
+	}
+	f := "site: lab\nreport: {address: " + address + ", token: demo}\ndefaults: {purpose: storage}\nmachines:\n  - match: {serial: OTHER}\n    name: srv-01\n"
+	return engine.Admission{Site: []byte(f), Purpose: "storage", Names: []string{"srv-01", "srv-02"}}, nil
+}

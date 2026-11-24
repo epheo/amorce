@@ -22,20 +22,22 @@ type File struct {
 	Machines []Machine `yaml:"machines"`
 }
 
-// Report names the first machine, which lists every install of the site.
+// Report names the first machine: it lists every install of the site, and
+// workers join its cluster.
 type Report struct {
 	// Address is the first machine's address, with or without a port.
 	Address string `yaml:"address"`
-	// Token lets installers post reports; it reads nothing back.
+	// Token is the site's secret: it posts reports and joins workers, so
+	// the file is kept like a password. It never crosses the network.
 	Token string `yaml:"token"`
 }
 
-// HostPort is Address with the report port added when it has none.
-func (r Report) HostPort(port int) string {
-	if _, _, err := net.SplitHostPort(r.Address); err == nil {
-		return r.Address
+// Host is Address without its port.
+func (r Report) Host() string {
+	if h, _, err := net.SplitHostPort(r.Address); err == nil {
+		return h
 	}
-	return net.JoinHostPort(r.Address, fmt.Sprint(port))
+	return r.Address
 }
 
 // Names lists the machines the file names, for the first machine's board.
@@ -71,7 +73,13 @@ type Answers struct {
 	Disks   *Disks   `yaml:"disks,omitempty"`
 	// SSHKeys are installed for root; cloud-init's name, since admins know it.
 	SSHKeys []string `yaml:"ssh_authorized_keys,omitempty"`
+	// Profile is the distro's: controller, the default, runs its own
+	// cluster; worker joins the first machine's.
+	Profile string `yaml:"profile,omitempty"`
 }
+
+// Worker is the profile of a machine that joins the first machine's cluster.
+const Worker = "worker"
 
 type Network struct {
 	Interface string   `yaml:"interface,omitempty"`
@@ -121,6 +129,24 @@ func Parse(b []byte) (*File, error) {
 		}
 		if e := a.Disks.Erase; e != "" && e != "blank" && e != "any" {
 			return nil, fmt.Errorf("site file: disks.erase is blank or any, not %q", e)
+		}
+	}
+	for i, a := range append([]Answers{f.Defaults}, machineAnswers(f.Machines)...) {
+		switch a.Profile {
+		case "", "controller":
+		case Worker:
+			if f.Report == nil {
+				return nil, fmt.Errorf("site file: a worker joins the machine report names; add report")
+			}
+		default:
+			return nil, fmt.Errorf("site file: profile is controller or worker, not %q", a.Profile)
+		}
+		if i == 0 {
+			continue
+		}
+		m := merge(f.Defaults, a)
+		if r := f.Report; r != nil && m.Profile == Worker && (m.Address == r.Host() || strings.HasPrefix(m.Address, r.Host()+"/")) {
+			return nil, fmt.Errorf("site file: %s is the first machine, which workers join: it cannot be one", r.Host())
 		}
 	}
 	for _, a := range append([]Answers{f.Defaults}, machineAnswers(f.Machines)...) {
@@ -187,6 +213,7 @@ func merge(d, m Answers) Answers {
 	out.Purpose = or(m.Purpose, d.Purpose)
 	out.Keyboard = or(m.Keyboard, d.Keyboard)
 	out.Address = or(m.Address, d.Address)
+	out.Profile = or(m.Profile, d.Profile)
 	if out.SSHKeys == nil {
 		out.SSHKeys = d.SSHKeys
 	}

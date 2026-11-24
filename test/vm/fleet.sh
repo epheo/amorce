@@ -16,7 +16,9 @@ wait_screen() { # vm pattern seconds
   echo "timeout waiting for: $2"; "$v" screen "$1"; return 1
 }
 token=$(head -c 12 /dev/urandom | base64 | tr -d '/+=')
-board() { curl -s -m 5 -H "Authorization: Bearer $token" http://10.99.0.21:9190/v1/machines || true; }
+first() { ssh -i "$work/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -q root@10.99.0.21 "$@"; }
+# The board answers only who proves the site's token, so ask the first machine.
+board() { first installer machines 2>/dev/null || true; }
 wait_board() { # jq filter seconds
   for _ in $(seq 1 "$2"); do board | jq -e "$1" >/dev/null 2>&1 && return 0; sleep 2; done
   echo "timeout waiting for board: $1"; board; echo; return 1
@@ -75,8 +77,7 @@ board | jq -r '.[] | "\(.name) \(.state) \(.address // "")"'
 step "the first machine's screen, kernel messages kept off it"
 sleep 3
 "$v" shot "$pre-1" "$work/board.png"
-ssh -i "$work/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -q \
-  root@10.99.0.21 'systemctl is-active -q installer-console &&
+first 'systemctl is-active -q installer-console &&
     for i in 1 2 3; do echo "<3>fleet test kernel message" > /dev/kmsg; done; sleep 1;
     ! grep -aq "fleet test kernel" /dev/vcs1 && grep -aq "fleet test kernel" /dev/vcs12' 
 echo "screen: $work/board.png"

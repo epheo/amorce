@@ -26,8 +26,9 @@ create() { # name port [secureboot [virt-install args...]]
     args+=(--disk "vol=$pool/$n-hdd$i.qcow2,bus=scsi,target.rotation_rate=7200,serial=HDD000$i")
   done
   args+=(--disk "vol=$pool/msi-installer.iso,device=cdrom,bus=sata,boot.order=2")
-  if virsh -q vol-info --pool $pool msi-payload.iso >/dev/null 2>&1; then
-    args+=(--disk "vol=$pool/msi-payload.iso,device=cdrom,bus=sata")
+  # PAYLOAD picks the images medium, so tests of different images can run at once.
+  if virsh -q vol-info --pool $pool "${PAYLOAD:-msi-payload.iso}" >/dev/null 2>&1; then
+    args+=(--disk "vol=$pool/${PAYLOAD:-msi-payload.iso},device=cdrom,bus=sata")
   fi
   local fw="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=no"
   [ "$sb" = on ] && fw="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes"

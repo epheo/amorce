@@ -143,7 +143,8 @@ func TestHomeFits(t *testing.T) {
 					t.Errorf("%v %v: line %d wide: %q", size, look, w, l)
 				}
 			}
-			for _, want := range []string{"3A:4F:9C", "E9:27", "Machines in site lab", "correct-horse-staple"} {
+			for _, want := range []string{"3A:4F:9C", "E9:27", "Machines in site lab", "correct-horse-staple",
+				"aardvark gigabyte outhouse reunion uncle zigzagged", "F4 close the words"} {
 				if !strings.Contains(out, want) {
 					t.Errorf("%v %v: %q missing:\n%s", size, look, want, out)
 				}
@@ -155,6 +156,58 @@ func TestHomeFits(t *testing.T) {
 					t.Errorf("%v %v: F3 lacks %q:\n%s", size, look, name, board)
 				}
 			}
+		}
+	}
+}
+
+// Purpose lists heard first machines, and the join form fits with an answer.
+func TestJoinFits(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {80, 24}} {
+		eng := engine.New(&demo.System{Speed: 1000})
+		eng.Start(context.Background())
+		for i := 0; i < 300 && len(eng.Snapshot().Clusters) == 0; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		m := New(context.Background(), eng, Options{Look: LookNormal})
+		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		eng.Go(engine.StepPurpose)
+		m.Update(EngineMsg{})
+		check := func(what string, want ...string) {
+			t.Helper()
+			out := ansi.Strip(m.View().Content)
+			lines := strings.Split(out, "\n")
+			if len(lines) > size[1] || strings.Contains(out, "…") {
+				t.Errorf("%v %s: does not fit:\n%s", size, what, out)
+			}
+			for _, w := range want {
+				if !strings.Contains(out, w) {
+					t.Errorf("%v %s: %q missing:\n%s", size, what, w, out)
+				}
+			}
+		}
+		check("purpose", "Join srv-01", "Join by address")
+		for range 5 {
+			m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+		}
+		for range 3 {
+			m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		for _, r := range "aar gig out reu" {
+			m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		}
+		check("join", "Join srv-01", "aardvark gigabyte outhouse reunion", "srv-01 shows its words now")
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		check("join, too few", "Type all six words.")
+		for _, r := range " unc zig" {
+			m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		for i := 0; i < 300 && eng.Snapshot().Step != engine.StepDisks; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if st := eng.Snapshot(); st.Profile != "worker" || st.Hostname != "srv-03" {
+			t.Errorf("%v: not joined: %q %q", size, st.Profile, st.Hostname)
 		}
 	}
 }

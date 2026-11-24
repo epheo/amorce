@@ -50,6 +50,9 @@ func TestParseRejects(t *testing.T) {
 		"machines:\n  - match: {mac: nope}\n",
 		"defaults: {disks: {data: raid5}}\nmachines: []\n",
 		"defaults: {ssh_authorized_keys: [AAAAC3Nza]}\nmachines: []\n",
+		"defaults: {profile: worker}\nmachines: []\n",
+		"defaults: {profile: master}\nmachines: []\n",
+		"report: {address: 10.0.0.1, token: t}\ndefaults: {profile: worker}\nmachines:\n  - match: {serial: X}\n    address: 10.0.0.1/24\n",
 	} {
 		if _, err := Parse([]byte(bad)); err == nil {
 			t.Errorf("accepted %q", bad)
@@ -72,5 +75,27 @@ func TestMarshalRoundTrip(t *testing.T) {
 	}
 	if a, ok := g.Find(Identity{Serial: "S1"}); !ok || a.Name != "a" {
 		t.Fatalf("%v %+v", ok, a)
+	}
+}
+
+func TestProfile(t *testing.T) {
+	f, err := Parse([]byte(`
+report: {address: 10.0.0.1, token: t}
+defaults: {profile: worker}
+machines:
+  - match: {serial: A}
+    address: 10.0.0.1/24
+    profile: controller
+  - match: {serial: B}
+    address: 10.0.0.2/24
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.Find(Identity{Serial: "A"}); a.Profile != "controller" {
+		t.Fatalf("first machine: %q", a.Profile)
+	}
+	if a, _ := f.Find(Identity{Serial: "B"}); a.Profile != Worker {
+		t.Fatalf("second machine: %q", a.Profile)
 	}
 }

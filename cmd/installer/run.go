@@ -129,7 +129,7 @@ func frontend(ctx context.Context, dev, lookName, cmdline string, logf func(stri
 	}
 	defer f.Close()
 
-	opts := []tea.ProgramOption{tea.WithInput(f), tea.WithoutSignalHandler(), tea.WithColorProfile(colorprofile.ANSI)}
+	opts := []tea.ProgramOption{tea.WithoutSignalHandler(), tea.WithColorProfile(colorprofile.ANSI)}
 	look := ui.LookNormal
 	where := "screen"
 	// Only the basic cursor moves every VT220 descendant has: the renderer's
@@ -138,6 +138,7 @@ func frontend(ctx context.Context, dev, lookName, cmdline string, logf func(stri
 	term := "TERM=vt220"
 	var before, after func(io.Writer)
 	if console.IsVT(f) {
+		opts = append(opts, tea.WithInput(&console.KeyFile{File: f}))
 		lf := &console.LinuxFile{File: f}
 		if strings.Contains(cmdline, "inst.trace") {
 			lf.Trace, _ = os.Create("/run/install/trace-" + filepath.Base(dev))
@@ -150,7 +151,7 @@ func frontend(ctx context.Context, dev, lookName, cmdline string, logf func(stri
 			after = func(w io.Writer) { console.SetColormap(f, console.ColormapOf(ui.Palette)) }
 		}
 	} else {
-		opts = append(opts, tea.WithOutput(f))
+		opts = append(opts, tea.WithInput(f), tea.WithOutput(f))
 		where = "serial console"
 		baud := 115200
 		for _, c := range strings.Fields(cmdline) {

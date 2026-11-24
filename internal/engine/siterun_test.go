@@ -2,17 +2,39 @@ package engine_test
 
 import (
 	"context"
-	"net/http/httptest"
+	"net"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/epheo/microshift-installer/internal/demo"
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/link"
 	"github.com/epheo/microshift-installer/internal/report"
 	"github.com/epheo/microshift-installer/internal/site"
 )
+
+// firstMachine serves a board the way the first machine's console does.
+func firstMachine(t *testing.T, token string) (*report.Store, string) {
+	t.Helper()
+	store := report.Open("")
+	ls, err := link.NewServer(filepath.Join(t.TempDir(), "tls.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	mux := http.NewServeMux()
+	report.Handle(mux, store, func(w http.ResponseWriter, r *http.Request) bool { return ls.Proven(w, r, token) })
+	go ls.Serve(l, mux)
+	return store, l.Addr().String()
+}
 
 func TestMain(m *testing.M) {
 	engine.SiteCountdown = 1
@@ -93,11 +115,8 @@ func TestSiteNamesOtherMachines(t *testing.T) {
 }
 
 func TestSiteReportsToFirstMachine(t *testing.T) {
-	store := report.Open("")
-	srv := httptest.NewServer(report.Handler(store, "tok"))
-	defer srv.Close()
-	file := strings.Replace(header, "site: lab\n", "site: lab\nreport: {address: \""+
-		strings.TrimPrefix(srv.URL, "http://")+"\", token: tok}\n", 1) +
+	store, addr := firstMachine(t, "tok")
+	file := strings.Replace(header, "site: lab\n", "site: lab\nreport: {address: \""+addr+"\", token: tok}\n", 1) +
 		"    name: k8s-01\n    purpose: kubernetes\n    address: 10.20.120.11/24\n" +
 		"  - match: {serial: OTHER}\n    name: k8s-02\n"
 	if _, err := site.Parse([]byte(file)); err != nil {
@@ -117,4 +136,13 @@ func TestSiteReportsToFirstMachine(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("board: %+v", board)
+}
+
+func TestSiteWorker(t *testing.T) {
+	file := strings.Replace(header, "site: lab\n", "site: lab\nreport: {address: 10.20.120.10, token: tok}\n", 1) +
+		"    name: k8s-02\n    purpose: kubernetes\n    address: 10.20.120.12/24\n    profile: worker\n"
+	st := run(t, file, func(s engine.State) bool { return s.Step == engine.StepReady })
+	if st.Profile != site.Worker {
+		t.Fatalf("profile %q", st.Profile)
+	}
 }

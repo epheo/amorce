@@ -26,6 +26,8 @@ type Options struct {
 	Home func() HomeInfo
 	// Login starts a login on this terminal, for the installed console.
 	Login func() tea.ExecCommand
+	// Words shows the first machine's join words, or closes them.
+	Words func()
 }
 
 // EngineMsg tells the model the engine state changed.
@@ -63,6 +65,7 @@ type Model struct {
 	note       string
 	home       HomeInfo
 	homeBoard  bool
+	join       *joinForm
 }
 
 func New(ctx context.Context, eng *engine.Engine, opt Options) *Model {
@@ -125,12 +128,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) enter(s engine.Step) {
 	m.shown = s
 	m.note = ""
-	m.form, m.roles, m.kb = nil, nil, nil
+	m.form, m.roles, m.kb, m.join = nil, nil, nil, nil
 	switch s {
 	case engine.StepNetwork:
 		m.netCur = 0
 	case engine.StepPurpose:
-		m.purposeCur = max(0, m.purposeIndex(m.st.PurposeID))
+		m.purposeCur = m.purposeCursor()
 	case engine.StepDisks:
 		m.disksCur = 0
 	case engine.StepName:
@@ -170,7 +173,7 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case engine.StepNetwork:
 		m.keyNetwork(s, k)
 	case engine.StepPurpose:
-		m.keyPurpose(s)
+		m.keyPurpose(s, k)
 	case engine.StepDisks:
 		m.keyDisks(s)
 	case engine.StepName:

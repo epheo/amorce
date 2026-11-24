@@ -41,3 +41,28 @@ func TestSiteForRoundTrips(t *testing.T) {
 		t.Fatalf("%+v\n%s", a, b)
 	}
 }
+
+// A machine the site file does not name adds itself to the file it keeps.
+func TestSiteForAddsThisMachine(t *testing.T) {
+	m := Machine{Serial: "S2", NICs: []NIC{{Name: "eno1", MAC: "3c:ec:ef:00:00:01", Carrier: true}}}
+	st := State{
+		Machine: m, Hostname: "k8s-02", Profile: site.Worker,
+		SiteFile: []byte("report: {address: 10.0.0.1, token: t}\nmachines:\n  - match: {serial: S1}\n    name: k8s-01\n"),
+		Net:      NetReport{Config: NetConfig{Mode: NetStatic, Iface: "eno1", Address: netip.MustParsePrefix("10.0.0.2/24")}},
+	}
+	b, err := siteFor(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := site.Parse(b)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, b)
+	}
+	a, ok := f.Find(site.Identity{Serial: "S2"})
+	if !ok || a.Name != "k8s-02" || a.Profile != site.Worker || a.Address != "10.0.0.2/24" || f.Report.Token != "t" {
+		t.Fatalf("%v %+v\n%s", ok, a, b)
+	}
+	if _, ok := f.Find(site.Identity{Serial: "S1"}); !ok {
+		t.Fatalf("lost the first machine:\n%s", b)
+	}
+}

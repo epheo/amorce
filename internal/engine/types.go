@@ -6,6 +6,8 @@ import (
 	"context"
 	"net/netip"
 	"time"
+
+	"github.com/epheo/microshift-installer/internal/report"
 )
 
 // Step is the wizard screen every frontend shows.
@@ -163,6 +165,28 @@ type InstallState struct {
 	MOKPassword string
 }
 
+// Cluster is a first machine heard on the network: workers join its
+// cluster.
+type Cluster struct {
+	Site    string
+	Name    string
+	Address string
+	Purpose string
+	// Open is set while its screen shows join words.
+	Open bool
+	Seen time.Time
+}
+
+// Admission is the first machine's answer to the right words.
+type Admission struct {
+	// Site is its site file, which holds the site's token.
+	Site []byte
+	// Purpose is what it runs; its workers run the same.
+	Purpose string
+	// Names are the machines it knows, so a new one gets a free name.
+	Names []string
+}
+
 // InstallRequest is everything the install needs; nothing else is read.
 type InstallRequest struct {
 	Machine  Machine
@@ -176,6 +200,9 @@ type InstallRequest struct {
 	Site []byte
 	// SSHKeys are installed for root.
 	SSHKeys []string
+	// Profile is "worker" for a machine that joins the first machine's
+	// cluster at its first start.
+	Profile string
 }
 
 // InstallEvent reports install progress from the system to the engine.
@@ -204,6 +231,11 @@ type System interface {
 	Reboot() error
 	// Site returns the site file found on the media, or nil.
 	Site(ctx context.Context) ([]byte, error)
+	// Clusters reports first machines heard on the network until ctx ends.
+	Clusters(ctx context.Context, found func(Cluster))
+	// Admit asks the first machine at address to admit this one; the words
+	// are the ones on its screen.
+	Admit(ctx context.Context, address string, words []string, me report.Report) (Admission, error)
 }
 
 // InstallSteps are the install's visible steps, in order.

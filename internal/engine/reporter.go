@@ -6,16 +6,15 @@ import (
 	"time"
 
 	"github.com/epheo/microshift-installer/internal/report"
-	"github.com/epheo/microshift-installer/internal/site"
 )
 
-// reportLoop tells the first machine how this install goes. It sends on
-// every change worth a line on the board, and again every minute; a send
-// that fails is retried at the next change or tick, never waited on.
-func (e *Engine) reportLoop(ctx context.Context, to site.Report) {
+// reportLoop tells the first machine, once one is known, how this install
+// goes. It sends on every change worth a line on the board, and again every
+// minute; a send that fails is retried at the next change or tick, never
+// waited on.
+func (e *Engine) reportLoop(ctx context.Context) {
 	ch, stop := e.Subscribe()
 	defer stop()
-	addr := to.HostPort(report.Port)
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
 	var sent report.Report
@@ -27,13 +26,18 @@ func (e *Engine) reportLoop(ctx context.Context, to site.Report) {
 		case <-ch:
 		case <-tick.C:
 		}
-		r := reportOf(e.Snapshot())
+		st := e.Snapshot()
+		to := st.ReportTo
+		if to == nil {
+			continue
+		}
+		r := reportOf(st)
 		same := r.State == sent.State && r.Step == sent.Step && r.Detail == sent.Detail &&
 			r.Name == sent.Name && r.Address == sent.Address && r.Progress-sent.Progress < 0.05
 		if same && time.Since(sentAt) < time.Minute {
 			continue
 		}
-		if report.Send(ctx, addr, to.Token, r) == nil {
+		if report.Send(ctx, to.Address, to.Token, r) == nil {
 			sent, sentAt = r, time.Now()
 		}
 	}
@@ -47,6 +51,9 @@ var stepNames = map[Step]string{
 // reportOf is the board's line for this machine.
 func reportOf(s State) report.Report {
 	r := report.Report{Name: s.Hostname, Serial: s.Machine.Serial, Expected: s.SiteNames}
+	if s.Profile == report.Worker {
+		r.Role = report.Worker
+	}
 	if s.Site != nil && s.Site.Name != "" {
 		r.Name = s.Site.Name
 	}

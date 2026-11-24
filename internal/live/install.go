@@ -328,11 +328,15 @@ func mountsOf(dev string) []string {
 	return out
 }
 
+// NodeConfigPath gives MicroShift the installer's answers.
+const NodeConfigPath = "etc/microshift/config.d/10-installer.yaml"
+
 // configure writes network, name and keyboard into the new /etc.
 func (s *System) configure(ctx context.Context, deploy string, req engine.InstallRequest) error {
 	files := map[string]string{
 		"etc/hostname":      req.Hostname + "\n",
 		"etc/vconsole.conf": setKey(readFile(filepath.Join(deploy, "etc/vconsole.conf")), "KEYMAP", req.Keyboard),
+		NodeConfigPath:      nodeConfig(req),
 	}
 	for name, body := range keyfiles(req.Net) {
 		files["etc/NetworkManager/system-connections/"+name+".nmconnection"] = body
@@ -342,10 +346,21 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 		files[SitePath] = string(req.Site)
 		written = append(written, filepath.Join(deploy, filepath.Dir(SitePath)))
 	}
+	if req.Profile == site.Worker {
+		// Started before the join, MicroShift would make this machine a
+		// controller; the console unmasks it when it joins.
+		p := filepath.Join(deploy, "etc/systemd/system/microshift.service")
+		os.Remove(p)
+		if err := os.Symlink("/dev/null", p); err != nil {
+			return err
+		}
+		written = append(written, p)
+	}
 	for rel, body := range files {
 		p := filepath.Join(deploy, rel)
 		mode := os.FileMode(0o644)
-		if strings.HasSuffix(rel, ".nmconnection") {
+		// The site file holds the site's token.
+		if strings.HasSuffix(rel, ".nmconnection") || rel == SitePath {
 			mode = 0o600
 		}
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -357,6 +372,16 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 		written = append(written, p)
 	}
 	return s.relabel(ctx, deploy, written)
+}
+
+// nodeConfig pins what MicroShift would otherwise guess: the node keeps its
+// name if the hostname changes, and keeps the address workers reach.
+func nodeConfig(req engine.InstallRequest) string {
+	b := "# Written by the installer.\nnode:\n  hostnameOverride: " + req.Hostname + "\n"
+	if req.Net.Mode == engine.NetStatic && req.Net.Address.IsValid() {
+		b += "  nodeIP: " + req.Net.Address.Addr().String() + "\n"
+	}
+	return b
 }
 
 func readFile(p string) string {

@@ -49,15 +49,7 @@ func (e *Engine) startSite(ctx context.Context) bool {
 		return false
 	}
 	e.update(func(s *State) { s.SiteFile, s.ReportTo, s.SiteNames = b, f.Report, f.Names() })
-	if f.Report != nil {
-		go e.reportLoop(ctx, *f.Report)
-	}
-	st := e.Snapshot()
-	id := site.Identity{Serial: st.Machine.Serial}
-	for _, n := range st.Machine.NICs {
-		id.MACs = append(id.MACs, n.MAC)
-	}
-	a, ok := f.Find(id)
+	a, ok := f.Find(e.Snapshot().identity())
 	if !ok {
 		e.update(func(s *State) {
 			s.Site = &SiteRun{Site: f.Site, Stopped: true, ProblemStep: StepHello,
@@ -103,7 +95,7 @@ func (e *Engine) runSite(ctx context.Context, a site.Answers) {
 		})
 	}
 
-	e.update(func(s *State) { s.SSHKeys = a.SSHKeys })
+	e.update(func(s *State) { s.SSHKeys, s.Profile = a.SSHKeys, a.Profile })
 	if a.Keyboard != "" {
 		if err := e.SetKeyboard(a.Keyboard); err != nil {
 			fail(StepHello, "Keyboard "+a.Keyboard+": "+err.Error())
@@ -151,7 +143,7 @@ func (e *Engine) runSite(ctx context.Context, a site.Answers) {
 		fail(StepPurpose, fmt.Sprintf("Purpose %q is not on this media: %s.", pid, strings.Join(ids, ", ")))
 		return
 	}
-	e.ChoosePurpose(p.ID)
+	e.update(func(s *State) { e.choosePurpose(s, p.ID) })
 
 	plan, msg := sitePlan(st.Machine, p, a.Disks)
 	if msg != "" {
@@ -319,35 +311,57 @@ func findDisk(m Machine, want string) (Disk, bool) {
 	return Disk{}, false
 }
 
-// siteFor is the site file the installed system keeps: the media's, as is,
-// or one written from this machine's answers, shared settings in defaults,
-// naming this machine as the first one that the others report to.
+// siteFor is the site file the installed system keeps: the one it was
+// installed from, naming this machine, or one written from this machine's
+// answers, shared settings in defaults, naming this machine as the first
+// one that the others report to.
 func siteFor(s State) ([]byte, error) {
+	id := s.identity()
+	f := &site.File{}
 	if s.SiteFile != nil {
-		return s.SiteFile, nil
+		var err error
+		if f, err = site.Parse(s.SiteFile); err != nil {
+			return nil, err
+		}
+		if _, ok := f.Find(id); ok {
+			return s.SiteFile, nil
+		}
+	} else {
+		f.Defaults = siteDefaults(s)
+		if c := s.Net.Config; c.Address.IsValid() {
+			f.Report = &site.Report{Address: c.Address.Addr().String(), Token: rand.Text()}
+		}
 	}
+	f.Machines = append(f.Machines, siteMachine(s))
+	return site.Marshal(f)
+}
+
+// siteDefaults are this machine's answers that the next machines share.
+func siteDefaults(s State) site.Answers {
 	p, _ := s.Purpose()
 	c := s.Net.Config
-	f := &site.File{}
-	if c.Address.IsValid() {
-		f.Report = &site.Report{Address: c.Address.Addr().String(), Token: rand.Text()}
-	}
 	data := "none"
 	if len(s.Plan.Pools) > 0 {
 		data = "auto"
 	}
-	f.Defaults = site.Answers{Purpose: p.ID, Keyboard: s.Keyboard, Disks: &site.Disks{System: "auto", Data: data},
+	d := site.Answers{Purpose: p.ID, Keyboard: s.Keyboard, Disks: &site.Disks{System: "auto", Data: data},
 		SSHKeys: s.SSHKeys}
 	n := site.Network{Interface: c.Iface, VLAN: c.VLAN}
 	if c.Gateway.IsValid() {
 		n.Gateway = c.Gateway.String()
 	}
-	for _, d := range c.DNS {
-		n.DNS = append(n.DNS, d.String())
+	for _, a := range c.DNS {
+		n.DNS = append(n.DNS, a.String())
 	}
-	f.Defaults.Network = &n
+	d.Network = &n
+	return d
+}
 
-	mt := site.Machine{Answers: site.Answers{Name: s.Hostname, Address: "dhcp"}}
+// siteMachine is this machine's own entry.
+func siteMachine(s State) site.Machine {
+	p, _ := s.Purpose()
+	c := s.Net.Config
+	mt := site.Machine{Answers: site.Answers{Name: s.Hostname, Address: "dhcp", Profile: s.Profile}}
 	if c.Mode == NetStatic {
 		mt.Address = c.Address.String()
 	}
@@ -366,6 +380,5 @@ func siteFor(s State) ([]byte, error) {
 			}
 		}
 	}
-	f.Machines = []site.Machine{mt}
-	return site.Marshal(f)
+	return mt
 }

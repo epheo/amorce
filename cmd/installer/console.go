@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +32,7 @@ func consoleCmd(args []string) error {
 	fs.Var(&ttys, "tty", "console device, repeatable (default /dev/tty1)")
 	lookName := fs.String("look", "", "force styled, normal or true")
 	sitePath := fs.String("site", "/"+live.SitePath, "this machine's site file")
-	statePath := fs.String("state", "/var/lib/microshift-installer/reports.json", "the first machine's board")
+	stateDir := fs.String("state", "/var/lib/microshift-installer", "the first machine's board and key")
 	fs.Parse(args)
 	if len(ttys) == 0 {
 		ttys = ttyList{"/dev/tty1"}
@@ -41,26 +40,37 @@ func consoleCmd(args []string) error {
 	logf := func(s string) { log.Println(s) }
 	ctx := context.Background()
 
-	h := &home{serial: live.DMISerial()}
+	h := &home{id: live.Identity(), state: report.Running, changed: make(chan struct{}, 1)}
 	if b, err := os.ReadFile(*sitePath); err == nil {
 		f, err := site.Parse(b)
 		if err != nil {
 			logf(err.Error())
 		} else {
 			h.site = f
+			h.answers, _ = f.Find(h.id)
 		}
 	}
 	if f := h.site; f != nil && f.Report != nil {
-		host, _, err := net.SplitHostPort(f.Report.HostPort(report.Port))
-		if err == nil && slices.Contains(ownAddresses(), host) {
-			h.store = report.Open(*statePath)
-			go func() {
-				srv := &http.Server{Addr: fmt.Sprintf(":%d", report.Port), Handler: report.Handler(h.store, f.Report.Token),
-					ReadHeaderTimeout: 10 * time.Second}
-				logf(fmt.Sprintf("receiving reports on %s: %v", srv.Addr, srv.ListenAndServe()))
-			}()
+		if h.answers.Profile == site.Worker && !workerJoined() {
+			h.state = report.Joining
 		}
-		go h.reportRunning(ctx, logf)
+		go func() {
+			if h.isFirst(ctx) {
+				fm, err := newFirst(f, h.answers, *sitePath, *stateDir)
+				if err != nil {
+					logf(err.Error())
+				} else {
+					h.mu.Lock()
+					h.first = fm
+					h.mu.Unlock()
+					go fm.serve(logf)
+					go fm.announce(ctx)
+				}
+			} else if h.state == report.Joining {
+				go h.joinCluster(ctx, logf)
+			}
+			h.reportRunning(ctx, logf)
+		}()
 	}
 
 	// Kernel messages go to tty12, alt+F12, as on ESXi; the serial console
@@ -75,7 +85,7 @@ func consoleCmd(args []string) error {
 
 	cmdline, _ := os.ReadFile("/proc/cmdline")
 	model := func(opt ui.Options) *ui.Model {
-		opt.Shell, opt.Home = nil, h.info
+		opt.Shell, opt.Home, opt.Words = nil, h.info, h.toggleWords
 		return ui.New(ctx, nil, opt)
 	}
 	serve(ctx, ttys, *lookName, string(cmdline), logf, model, nil)
@@ -83,20 +93,65 @@ func consoleCmd(args []string) error {
 }
 
 type home struct {
-	serial string
-	site   *site.File
-	store  *report.Store // the first machine's board, nil elsewhere
+	id      site.Identity
+	site    *site.File
+	answers site.Answers // this machine's, when the site file names it
 
-	mu   sync.Mutex
-	last ui.HomeInfo
+	mu      sync.Mutex
+	first   *first // set on the first machine
+	state   string // running, or joining for a worker not joined yet
+	detail  string
+	changed chan struct{}
+	last    ui.HomeInfo
+}
+
+// isFirst says whether this is the machine the site file reports to: by its
+// own entry, or by its addresses once the network is up.
+func (h *home) isFirst(ctx context.Context) bool {
+	host := h.site.Report.Host()
+	if a := h.answers.Address; a == host || strings.HasPrefix(a, host+"/") {
+		return true
+	}
+	if h.answers.Profile == site.Worker {
+		return false
+	}
+	for range 30 {
+		if slices.Contains(ownAddresses(), host) {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(2 * time.Second):
+		}
+	}
+	return false
+}
+
+func (h *home) set(state, detail string) {
+	h.mu.Lock()
+	h.state, h.detail = state, detail
+	h.mu.Unlock()
+	select {
+	case h.changed <- struct{}{}:
+	default:
+	}
 }
 
 // self is this machine's line on the board.
 func (h *home) self() report.Report {
 	name, _ := os.Hostname()
-	r := report.Report{Name: name, Serial: h.serial, State: report.Running}
+	h.mu.Lock()
+	r := report.Report{Name: name, Serial: h.id.Serial, State: h.state, Detail: h.detail}
+	h.mu.Unlock()
+	if len(h.id.MACs) > 0 {
+		r.MAC = h.id.MACs[0]
+	}
 	if a := ownAddresses(); len(a) > 0 {
 		r.Address = a[0]
+	}
+	if h.answers.Profile == site.Worker {
+		r.Role = report.Worker
 	}
 	if h.site != nil {
 		r.Expected = h.site.Names()
@@ -104,35 +159,69 @@ func (h *home) self() report.Report {
 	return r
 }
 
-// reportRunning says this machine is up, on the first machine's board or
-// to the first machine: once it gets through, then every 10 minutes.
+// reportRunning puts this machine on the first machine's board: at every
+// change, and every 10 minutes once a report gets through.
 func (h *home) reportRunning(ctx context.Context, logf func(string)) {
 	to := h.site.Report
 	for {
 		wait := 10 * time.Minute
-		if h.store != nil {
-			h.store.Add(h.self())
-		} else if err := report.Send(ctx, to.HostPort(report.Port), to.Token, h.self()); err != nil {
+		h.mu.Lock()
+		fm := h.first
+		h.mu.Unlock()
+		if fm != nil {
+			fm.store.Add(h.self())
+		} else if err := report.Send(ctx, to.Address, to.Token, h.self()); err != nil {
 			logf(fmt.Sprintf("report to %s: %v", to.Address, err))
 			wait = 30 * time.Second
 		}
 		select {
 		case <-ctx.Done():
 			return
+		case <-h.changed:
 		case <-time.After(wait):
 		}
+	}
+}
+
+func (h *home) toggleWords() {
+	h.mu.Lock()
+	fm := h.first
+	h.mu.Unlock()
+	if fm != nil {
+		fm.toggleWords()
 	}
 }
 
 // info is the latest gathered view; the screen never waits on a command.
 func (h *home) info() ui.HomeInfo {
 	h.mu.Lock()
-	i := h.last
+	i, fm, state, detail := h.last, h.first, h.state, h.detail
 	h.mu.Unlock()
-	if h.store != nil {
-		i.Board = h.store.Board()
+	switch {
+	case fm != nil:
+		i.Board = fm.store.Board()
+		workers := 0
+		for _, r := range i.Board {
+			if r.Role == report.Worker && r.State == report.Running {
+				workers++
+			}
+		}
+		i.Cluster = fmt.Sprintf("first machine, %d %s joined", workers, plural(workers, "worker", "workers"))
+		i.Words, i.WordsUntil, i.WordsNote = fm.wordsShown()
+		i.CanAdd = true
+	case h.answers.Profile == site.Worker && state == report.Joining:
+		i.Cluster, i.ClusterBusy = "worker of "+h.site.Report.Host()+", joining: "+detail, true
+	case h.answers.Profile == site.Worker:
+		i.Cluster = "worker of " + h.site.Report.Host()
 	}
 	return i
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // gather asks systemd every 2 seconds, and bootc until it answers once:
@@ -142,7 +231,7 @@ func (h *home) gather(ctx context.Context) {
 	var asked time.Time
 	for {
 		name, _ := os.Hostname()
-		i := ui.HomeInfo{Name: name, Address: ownAddresses(), Serial: h.serial, Notes: issueNotes()}
+		i := ui.HomeInfo{Name: name, Address: ownAddresses(), Serial: h.id.Serial, Notes: issueNotes()}
 		if h.site != nil {
 			i.Site = h.site.Site
 		}
@@ -236,8 +325,14 @@ func issueNotes() []ui.Note {
 	return out
 }
 
+// microshiftRange is MicroShift's own: 10.42 to 10.44.
+func microshiftRange(ip net.IP) bool {
+	ip = ip.To4()
+	return ip != nil && ip[0] == 10 && ip[1] >= 42 && ip[1] <= 44
+}
+
 // ownAddresses are this machine's IPv4 addresses on its networks, without
-// MicroShift's own ranges (10.42 to 10.44) and link-local ones.
+// MicroShift's own ranges and link-local ones.
 func ownAddresses() []string {
 	addrs, _ := net.InterfaceAddrs()
 	var out []string
@@ -247,7 +342,7 @@ func ownAddresses() []string {
 			continue
 		}
 		ip := ipn.IP.To4()
-		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || (ip[0] == 10 && ip[1] >= 42 && ip[1] <= 44) {
+		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || microshiftRange(ip) {
 			continue
 		}
 		out = append(out, ip.String())

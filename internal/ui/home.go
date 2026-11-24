@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -25,6 +26,15 @@ type HomeInfo struct {
 	// Site names the site file; Board is set on the first machine only.
 	Site  string
 	Board []report.Report
+	// Cluster says how this machine belongs to the site's cluster.
+	Cluster     string
+	ClusterBusy bool
+	// CanAdd is set on the first machine: F4 shows Words, which admit a new
+	// machine until WordsUntil; WordsNote says why they closed early.
+	CanAdd     bool
+	Words      []string
+	WordsUntil time.Time
+	WordsNote  string
 }
 
 type Note struct {
@@ -38,6 +48,9 @@ func (m *Model) keyHome(s string) tea.Cmd {
 		m.homeBoard = !m.homeBoard
 	case s == "esc":
 		m.homeBoard = false
+	case s == "f4" && m.home.CanAdd && m.opt.Words != nil:
+		m.opt.Words()
+		m.home = m.opt.Home()
 	case s == "enter" && m.opt.Login != nil:
 		return tea.Exec(m.opt.Login(), func(err error) tea.Msg { return shellDoneMsg{err} })
 	}
@@ -52,7 +65,10 @@ func (m *Model) viewHome() screen {
 	kv := func(k, v string, st lipgloss.Style) string {
 		return t.S(t.Muted).Width(10).Render(k) + st.Render(v)
 	}
+	// Serial and image give way first on a small screen: the purpose's
+	// notes are never cut, and open words must show.
 	var lines []string
+	var spare []int
 	lines = append(lines, t.B(t.Title).Render("This machine"))
 	if len(h.Address) > 0 {
 		lines = append(lines, kv("Address", strings.Join(h.Address, ", "), t.S(t.Fg)))
@@ -67,11 +83,28 @@ func (m *Model) viewHome() screen {
 		health, hs = fmt.Sprintf("degraded: %d %s failed", h.Failed, plural(h.Failed, "unit", "units")), t.S(t.Warn)
 	}
 	lines = append(lines, kv("Health", health, hs))
-	if h.Serial != "" {
-		lines = append(lines, kv("Serial", h.Serial, t.S(t.Fg)))
+	if h.Cluster != "" {
+		st := t.S(t.Fg)
+		if h.ClusterBusy {
+			st = t.S(t.Warn)
+		}
+		lines = append(lines, kv("Cluster", h.Cluster, st))
 	}
 	if h.Image != "" {
+		spare = append(spare, len(lines))
 		lines = append(lines, kv("Image", h.Image, t.S(t.Fg)))
+	}
+	if h.Serial != "" {
+		spare = append(spare, len(lines))
+		lines = append(lines, kv("Serial", h.Serial, t.S(t.Fg)))
+	}
+	if len(h.Words) > 0 {
+		lines = append(lines, "",
+			t.B(t.Title).Render("Add machines")+t.S(t.Muted).Render("   until "+h.WordsUntil.Format("15:04")),
+			t.S(t.Fg).Render("In the new machine's installer, choose Join "+h.Name+", and type:"),
+			"  "+t.B(t.Accent).Render(strings.Join(h.Words, " ")))
+	} else if h.WordsNote != "" {
+		lines = append(lines, "", t.S(t.Warn).Render(t.Alert+" ")+t.S(t.Fg).Render(h.WordsNote))
 	}
 	for _, n := range h.Notes {
 		lines = append(lines, "", t.B(t.Title).Render(n.From))
@@ -82,15 +115,23 @@ func (m *Model) viewHome() screen {
 		}
 	}
 	rows := l.helpY - 4
+	var board []string
 	if len(h.Board) > 0 {
-		board := m.board(h, len(h.Board)+1)
-		if m.homeBoard {
-			lines = m.board(h, rows)
-		} else if len(squeeze(lines, rows))+1+len(board) <= rows {
-			lines = append(append(lines, ""), board...)
-		} else {
-			lines = append(lines, "", board[0])
+		board = m.board(h, len(h.Board)+1)
+		if len(squeeze(lines, rows))+1+len(board) > rows {
+			board = board[:1]
 		}
+	}
+	for len(spare) > 0 && len(squeeze(lines, rows))+len(board) > rows {
+		i := spare[len(spare)-1]
+		spare = spare[:len(spare)-1]
+		lines = append(lines[:i], lines[i+1:]...)
+	}
+	if len(board) > 0 {
+		lines = append(append(squeeze(lines, rows-len(board)), ""), board...)
+	}
+	if m.homeBoard {
+		lines = m.board(h, rows)
 	}
 	sc := screen{
 		fullscreen: true, focusFrom: -1, title: h.Name, bar: "HOME",
@@ -101,6 +142,12 @@ func (m *Model) viewHome() screen {
 		sc.help = append(sc.help, [2]string{"esc", "back"})
 	case len(h.Board) > 0:
 		sc.help = append(sc.help, [2]string{"F3", "machines"})
+	}
+	switch {
+	case h.CanAdd && len(h.Words) > 0:
+		sc.help = append(sc.help, [2]string{"F4", "close the words"})
+	case h.CanAdd:
+		sc.help = append(sc.help, [2]string{"F4", "add machines"})
 	}
 	if m.opt.Login != nil {
 		sc.help = append(sc.help, [2]string{"enter", "log in"})
@@ -173,6 +220,11 @@ func (m *Model) board(h HomeInfo, rows int) []string {
 		switch r.State {
 		case report.Running:
 			sym, st, state, detail = t.Ok, t.S(t.Good), "running", r.Address
+			if r.Role == report.Worker {
+				detail += "  worker"
+			}
+		case report.Joining:
+			sym, st, state, detail = t.Cur, t.S(t.Accent), "joining", r.Detail
 		case report.Installed:
 			sym, st, state, detail = t.Ok, t.S(t.Good), "installed", "restarting"
 		case report.Installing:

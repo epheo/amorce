@@ -30,6 +30,9 @@ func screens(dir string, w, h int) error {
 		if err := walkHome(dir, look, w, h); err != nil {
 			return err
 		}
+		if err := walkJoin(dir, look, w, h); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -156,6 +159,30 @@ func walkHome(dir string, look ui.Look, w, h int) error {
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyF3})
 	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("10b-home-board-%s.ans", look)), []byte(m.View().Content), 0o644)
+}
+
+// walkJoin shows a first machine heard on the network, and its words typed.
+func walkJoin(dir string, look ui.Look, w, h int) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	eng := engine.New(&demo.System{Speed: 1000})
+	eng.Start(ctx)
+	waitFor(eng, func(s engine.State) bool { return s.Discovered && len(s.Clusters) > 0 })
+	eng.Go(engine.StepPurpose)
+	m := ui.New(ctx, eng, ui.Options{Look: look, Where: "screen and serial console"})
+	m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	m.Update(ui.EngineMsg{})
+	for _, k := range []string{"up", "up", "up", "down", "down", "down"} {
+		m.Update(keyMsg(k))
+	}
+	if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("3b-purpose-join-%s.ans", look)), []byte(m.View().Content), 0o644); err != nil {
+		return err
+	}
+	m.Update(keyMsg("enter"))
+	for _, r := range "aar gig out reu unc zig" {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("3c-join-words-%s.ans", look)), []byte(m.View().Content), 0o644)
 }
 
 func waitFor(eng *engine.Engine, ok func(engine.State) bool) {

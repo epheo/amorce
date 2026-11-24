@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +14,9 @@ import (
 
 	"github.com/epheo/microshift-installer/internal/demo"
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/live"
+	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/microshift-installer/internal/site"
 	"github.com/epheo/microshift-installer/internal/ui"
 )
 
@@ -23,6 +27,7 @@ const usage = `usage:
   installer iso [flags]             write install media (see installer iso -h)
   installer font DIR                write the console fonts
   installer console [--tty DEV]...  the installed system's console (default /dev/tty1)
+  installer machines [--site FILE]  the site's board, as JSON, from its first machine
 `
 
 func main() {
@@ -51,6 +56,8 @@ func main() {
 		err = isoCmd(os.Args[2:])
 	case "console":
 		err = consoleCmd(os.Args[2:])
+	case "machines":
+		err = machinesCmd(os.Args[2:])
 	case "font":
 		if len(os.Args) < 3 {
 			err = fmt.Errorf("font needs a directory")
@@ -112,4 +119,28 @@ func demoCmd(args []string) error {
 	}()
 	_, err = p.Run()
 	return err
+}
+
+func machinesCmd(args []string) error {
+	fs := flag.NewFlagSet("machines", flag.ExitOnError)
+	path := fs.String("site", "/"+live.SitePath, "the site file")
+	fs.Parse(args)
+	b, err := os.ReadFile(*path)
+	if err != nil {
+		return err
+	}
+	f, err := site.Parse(b)
+	if err != nil {
+		return err
+	}
+	if f.Report == nil {
+		return fmt.Errorf("%s names no first machine", *path)
+	}
+	board, err := report.Machines(context.Background(), f.Report.Address, f.Report.Token)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(board)
 }

@@ -3,11 +3,8 @@
 package report
 
 import (
-	"bytes"
 	"context"
-	"crypto/subtle"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,10 +12,9 @@ import (
 	"strings"
 	"sync"
 	"time"
-)
 
-// Port is where the first machine listens; the distro opens it.
-const Port = 9190
+	"github.com/epheo/microshift-installer/internal/link"
+)
 
 // States a machine reports, in the order an install goes through them.
 const (
@@ -26,8 +22,12 @@ const (
 	Installing = "installing" // Step and Progress say how far
 	Failed     = "failed"     // Detail is the error
 	Installed  = "installed"  // restarting into the installed system
+	Joining    = "joining"    // a worker joining the first machine's cluster; Detail says how
 	Running    = "running"    // the installed system is up
 )
+
+// Worker is the role of a machine that joins the first machine's cluster.
+const Worker = "worker"
 
 type Report struct {
 	Name     string    `json:"name"`
@@ -38,6 +38,7 @@ type Report struct {
 	Step     string    `json:"step,omitempty"`
 	Progress float64   `json:"progress,omitempty"`
 	Detail   string    `json:"detail,omitempty"`
+	Role     string    `json:"role,omitempty"`
 	At       time.Time `json:"at"`
 	// Expected names every machine of the site file the sender booted
 	// with, so the board lists machines not seen yet.
@@ -57,48 +58,42 @@ func (r Report) key() string {
 
 // Send posts r to the first machine; callers never wait on it for long.
 func Send(ctx context.Context, address, token string, r Report) error {
-	b, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/v1/reports", bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%s: %s", address, resp.Status)
-	}
-	return nil
+	return link.Call(ctx, address, token, http.MethodPost, "/v1/reports", r, nil)
 }
 
 // Machines asks the first machine for its board.
 func Machines(ctx context.Context, address, token string) ([]Report, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+address+"/v1/machines", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s: %s", address, resp.Status)
-	}
 	var out []Report
-	return out, json.NewDecoder(resp.Body).Decode(&out)
+	return out, link.Call(ctx, address, token, http.MethodGet, "/v1/machines", nil, &out)
+}
+
+// Admission is the first machine's answer to an installer that typed the
+// words from its screen: the site file, which holds the site's token.
+type Admission struct {
+	Site    string   `json:"site"`
+	Purpose string   `json:"purpose"`
+	Names   []string `json:"names,omitempty"`
+}
+
+// Admit trades the words on the first machine's screen for its site file;
+// me is the asking machine's line on its board.
+func Admit(ctx context.Context, address, words string, me Report) (Admission, error) {
+	var a Admission
+	return a, link.Call(ctx, address, words, http.MethodPost, "/v1/admit", me, &a)
+}
+
+// Join asks the first machine for what a worker joins its cluster with: a
+// MicroShift join kubeconfig, valid minutes.
+func Join(ctx context.Context, address, token string, me Report) (string, error) {
+	var out struct {
+		Kubeconfig string `json:"kubeconfig"`
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	err := link.Call(ctx, address, token, http.MethodPost, "/v1/join", me, &out)
+	return out.Kubeconfig, err
 }
 
 // Store is the first machine's board, kept on disk so a restart keeps it.
@@ -190,15 +185,11 @@ func (s *Store) boardLocked() []Report {
 	return out
 }
 
-// Handler serves the store; every call needs the site's token.
-func Handler(s *Store, token string) http.Handler {
-	mux := http.NewServeMux()
-	auth := func(r *http.Request) bool {
-		got, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		return token != "" && subtle.ConstantTimeCompare([]byte(got), []byte(token)) == 1
-	}
+// Handle adds the store's calls to mux; proven says whether a call holds
+// the site's token.
+func Handle(mux *http.ServeMux, s *Store, proven func(http.ResponseWriter, *http.Request) bool) {
 	mux.HandleFunc("POST /v1/reports", func(w http.ResponseWriter, r *http.Request) {
-		if !auth(r) {
+		if !proven(w, r) {
 			http.Error(w, "wrong token", http.StatusUnauthorized)
 			return
 		}
@@ -212,12 +203,11 @@ func Handler(s *Store, token string) http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /v1/machines", func(w http.ResponseWriter, r *http.Request) {
-		if !auth(r) {
+		if !proven(w, r) {
 			http.Error(w, "wrong token", http.StatusUnauthorized)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.Board())
 	})
-	return mux
 }

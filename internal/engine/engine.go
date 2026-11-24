@@ -43,6 +43,14 @@ type State struct {
 	// SSHKeys come from the site file; the wizard has no screen for them.
 	SSHKeys []string
 
+	// Profile is "worker" when this machine joins the first machine's
+	// cluster; ReportTo names that machine.
+	Profile string
+	// Clusters are the first machines heard on the network.
+	Clusters []Cluster
+	// Join is the attended join under way or done, if any.
+	Join *JoinState
+
 	Install InstallState
 }
 
@@ -99,6 +107,8 @@ func (e *Engine) Start(ctx context.Context) {
 				s.PurposeID = BestFit(m, ps).ID
 			}
 		})
+		go e.reportLoop(ctx)
+		go e.sys.Clusters(ctx, e.heard)
 		if !e.startSite(ctx) {
 			e.RefreshNetwork(ctx)
 		}
@@ -141,6 +151,11 @@ func (e *Engine) Snapshot() State {
 	s.Plan.Pools = slices.Clone(s.Plan.Pools)
 	s.Plan.Unused = slices.Clone(s.Plan.Unused)
 	s.Machine.NICs = slices.Clone(s.Machine.NICs)
+	s.Clusters = slices.Clone(s.Clusters)
+	if s.Join != nil {
+		j := *s.Join
+		s.Join = &j
+	}
 	if s.Site != nil {
 		run := *s.Site
 		s.Site = &run
@@ -212,8 +227,16 @@ func (e *Engine) ChooseNetwork(cfg NetConfig) {
 	})
 }
 
+// ChoosePurpose makes this machine the first of a new cluster of purpose id.
 func (e *Engine) ChoosePurpose(id string) {
 	e.update(func(s *State) {
+		s.leaveJoin()
+		e.choosePurpose(s, id)
+	})
+}
+
+func (e *Engine) choosePurpose(s *State, id string) {
+	{
 		if s.PurposeID != id || s.Plan.System == "" {
 			s.PurposeID = id
 			p, _ := s.Purpose()
@@ -223,7 +246,7 @@ func (e *Engine) ChoosePurpose(id string) {
 			p, _ := s.Purpose()
 			s.Hostname = SuggestHostname(p)
 		}
-	})
+	}
 }
 
 func (e *Engine) SetPlan(p DiskPlan) {
@@ -284,6 +307,7 @@ func (e *Engine) Install(ctx context.Context, confirm string) error {
 		Hostname: s.Hostname,
 		Keyboard: s.Keyboard,
 		SSHKeys:  s.SSHKeys,
+		Profile:  s.Profile,
 	}
 	req.Site, _ = siteFor(s)
 	steps := make([]InstallStep, len(InstallSteps))

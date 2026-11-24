@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 type System struct {
@@ -128,4 +130,15 @@ func (s *System) SetKeymap(name string) error {
 func (s *System) Reboot() error {
 	_, err := s.cmd(context.Background(), "systemctl", "reboot")
 	return err
+}
+
+// Identity is what site files match this machine by.
+func Identity() site.Identity {
+	id := site.Identity{Serial: DMISerial()}
+	for _, n := range physicalNICs() {
+		if mac := readSys(filepath.Join("/sys/class/net", n, "address")); mac != "" {
+			id.MACs = append(id.MACs, mac)
+		}
+	}
+	return id
 }

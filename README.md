@@ -1,7 +1,7 @@
 # microshift-installer
 
 Boot media and console wizard that install any image built FROM ghcr.io/epheo/microshift.
-Status: in VMs, attended installs on styled and normal consoles, unattended installs from a site file, and every install reporting to the first machine's console.
+Status: in VMs, attended installs on styled and normal consoles, unattended installs from a site file, every install reporting to the first machine's console, and workers joining its cluster.
 Screen mockups: the "Installer TUI UX" canvas.
 
 ## Use
@@ -113,7 +113,7 @@ Attended, first machine:
 
 1. Hello: install or rescue shell; keyboard layout, searchable.
 2. Network: cable map with LLDP; live tests; the fix pre-selected.
-3. Purpose: list from image labels; best-fit badge from the hardware found.
+3. Purpose: list from image labels; best-fit badge from the hardware found; or join a first machine heard on the network.
 4. Disks: one system disk; the purpose's data plan; spare disks left free; or roles by hand.
 5. Name: the hostname, checked as typed.
 6. Confirm: every disk erased and every disk kept; typing the hostname unlocks erase.
@@ -127,21 +127,36 @@ Unattended, when a site file names the machine:
 - It stops at Confirm before erasing a disk that holds something, unless the file says `erase: any`, and when Secure Boot needs a decision.
 - A site file that does not name the machine is said on Hello; the serial number is on Hello's panel, to add it.
 
-Planned:
-
-- Join: pick a discovered cluster or type its address; compare six words with its console.
-
 ## Reporting
 
 - The site file's `report: {address, token}` names the first machine.
 - An attended install with no site file names itself, with a new token, in the site file it keeps; machines installed from that file report to it.
 - Every installer reports: waiting (and why: a screen a person is on, a site answer that failed), installing (step, progress), failed (the error), installed.
-- The installed console then reports running, with its address, every 10 minutes.
+- The installed console then reports running, with its address, every 10 minutes; a worker reports joining first.
 - The first machine's console lists every machine the site file names, seen or not; F3 shows the whole list.
 - Reports go one way: the first machine never sends commands to installers.
 - Reports never block an install; a send that fails is retried at the next change.
-- HTTP on port 9190 with the token; reports hold names, addresses and progress, nothing secret.
-- Planned: the MOK password on the board, for a machine that needs a person; Join.
+- TLS on port 9190; the token never crosses the network (see Trust).
+- `installer machines` prints the board as JSON, on any machine holding the site file.
+- Planned: the MOK password on the board, for a machine that needs a person.
+
+## Join
+
+The distro has two profiles: controller, the default, runs its own cluster; worker joins one.
+
+- A site file's `profile: worker` makes a machine a worker of the first machine's cluster.
+- Without a site file, Purpose lists the first machines heard on the network, and "Join by address".
+- Joining one asks for the six words its console shows after F4; the first machine answers with its site file.
+- The worker then installs the image the first machine runs, with the next free name (store-01 gives store-02).
+- The installer masks MicroShift on a worker: started before the join, it would make the machine a controller.
+- At its first start, the worker's console asks the first machine for a join kubeconfig, valid 10 minutes.
+- Then it runs the distro's steps: `microshift-profile worker`, unmask and enable MicroShift, `microshift add-node --worker`.
+- The kubeconfig lives in /run for that one command; add-node removes its own copy.
+- It tries again every 30 seconds until the first machine's MicroShift can let it in, so all machines can install at once.
+- The first machine adds each worker to /etc/hosts: the apiserver reaches kubelets by node name, and a site may have no DNS.
+- Every install pins `node.hostnameOverride`, and `node.nodeIP` for a fixed address, in `/etc/microshift/config.d/10-installer.yaml`.
+- First machines broadcast a beacon every 5 seconds on UDP 9190 (site, name, address, purpose, words shown); it is a hint, never trusted.
+
 
 ## Installed console
 
@@ -203,14 +218,16 @@ Plan file, `/etc/microshift-installer/data-disks.json`:
 - stornas (branch installer-plan): the agent reports the file in its NodeInventory; the operator creates those StoragePools once and marks the inventory.
 - A pool the user deletes later is never recreated.
 
-## Trust (planned)
+## Trust
 
-- Join: six words from the first machine's join key fingerprint (BIP39-style list).
-- Words work there because both screens are ours.
-- Browsers show hex, so the console shows the UI certificate's SHA-256 as byte pairs, like browsers do.
+- The site file's token is the site's secret: it posts reports and joins workers. Installs keep the file mode 600.
+- The first machine makes a TLS key at its first start; nobody checks its certificate against anything.
+- Instead each end proves it holds the secret: an HMAC of the first machine's certificate, one for each direction.
+- A machine in the middle shows its own certificate, so a proof made for it is worthless at the first machine, and it cannot make the first machine's.
+- Join words are a secret too, for machines without the site file: six from the EFF short list 2.0, about 62 bits.
+- They last an hour or five wrong tries; F4 closes them sooner. Three letters of each word are enough to type.
+- Words work there because both screens are ours; browsers show hex, so the console shows the UI certificate's SHA-256 as byte pairs.
 - stornas already prints address, fingerprint, and first admin password on its login screen.
-- Join codes are short, expire, and bind to the cluster that issued them.
-- The site file holds no plaintext secret: password hashes, and a join token that expires and only admits the listed serials.
 
 ## Secure Boot
 
@@ -280,13 +297,19 @@ All consoles:
 
 ```yaml
 site: lab
+report: {address: 10.20.120.11, token: ...}   # the first machine; the token is the site's secret
 defaults:
   purpose: storage                 # an id from the media; optional with one purpose
   keyboard: fr
   network: {interface: eno1, vlan: 110, gateway: 10.20.120.1, dns: [10.20.0.53]}
   disks: {system: auto, data: auto, erase: blank}
   ssh_authorized_keys: ["ssh-ed25519 AAAA... admin@lab"]   # for root
+  profile: worker                  # join the first machine's cluster; controller is the default
 machines:
+  - match: {serial: CZ2041XY7J}
+    name: srv-01
+    address: 10.20.120.11/24
+    profile: controller            # the first machine
   - match: {serial: CZ2041XY7K}
     name: srv-02
     address: 10.20.120.12/24       # or dhcp
@@ -303,7 +326,8 @@ machines:
 - Read from any install medium's root: the ISO, or media labeled MSPAYLOAD*.
 - Every install writes one for its own machine, shared settings under defaults.
 - `ssh_authorized_keys` go to root through bootc; the wizard has no screen for them.
-- Planned: an admin password hash, NTP, join.
+- A worker needs `report`; the first machine cannot be one.
+- Planned: an admin password hash, NTP.
 
 ## Testing
 
@@ -314,7 +338,9 @@ machines:
 - `SB=on test/vm/e2e.sh VM PORT`: the same with Secure Boot enforced; the warnings must show.
 - `test/vm/edge.sh VM PORT`: a PERC RAID volume and a network with no DHCP and no gateway.
 - `test/vm/site.sh VM PORT`: site media name the VM by serial; no key is pressed until the install is done; the installed system keeps the answers.
-- `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console. Needs a payload built from `console.Containerfile`.
+- `test/vm/media.sh BASE`: the installer ISO, and a payload of the OS image BASE with the installed console added as the distro adds it (`console.Containerfile`).
+- `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console.
+- `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
 
@@ -334,11 +360,13 @@ Designed during implementation, not in the mockups:
 
 1. Single machine, attended, one system disk; LLDP and gateway probe; styled and normal console; serial e2e. Done, in VMs.
 2. Site file, unattended installs, reporting to the first machine's installed console: done, in VMs.
-3. Join: join service on the first machine, discovery, words.
+3. Join: workers from the site file and by words, discovery: done, in VMs.
 4. Secure Boot enrollment, after distro module signing.
 5. Installed console: the screen and board are done; next, changing settings from it (network, like ESXi's F2), and an SSH frontend through Wish.
 
 ## Dependencies
+
+- Join words: the EFF short word list 2.0 (Electronic Frontier Foundation, CC BY 3.0 US).
 
 - stornas: the install-plan branch, and the labels in its image.
 - distro: the installed console lines above, once this repo publishes its image; labels for the MicroShift purpose (safe now: updates follow the pull, not inherited labels); DRBD module signing (phase 4).
@@ -349,5 +377,5 @@ Designed during implementation, not in the mockups:
 - Bonds: offered when two links reach different switches, or always asked?
 - Unattended installs with Secure Boot on: MOK needs a person per machine; check BMC (Redfish) key enrollment, and whether the kernel trusts those keys for modules.
 - A 16x32 font drawn for that size rather than doubled.
-- Join service: where it runs, and how long codes live.
+- The site token never expires; rotating it from the first machine's console is planned with settings (phase 5).
 - Repo name.
