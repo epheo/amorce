@@ -355,7 +355,7 @@ machines:
 - `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console.
 - `KMOD_KEY=key.pem PAYLOAD=msi-signed.iso test/vm/media.sh BASE`, then `PAYLOAD=msi-signed.iso test/vm/mok.sh VM PORT`: an image with DRBD signed by a test key, the way the distro signs it (`signed.Containerfile`); Secure Boot on; an unattended install queues the key; the test answers MokManager over the serial console; DRBD must load under lockdown.
 - `test/vm/settings.sh VM PORT`: over SSH to an installed console, a root password and a new address; the machine restarts on it, MicroShift and the UI follow, the password logs in, and F2 opens the settings on tty1. `ptydrive.py` drives the SSH session.
-- `test/vm/purpose.sh VM PORT`: media with MicroShift beside Storage; a site file picks MicroShift; the distro builds the data disks into its default Pool. Needs the distro's installer/purpose image, or its published one with that branch's unit and labels added.
+- `test/vm/purpose.sh VM PORT`: media with MicroShift beside Storage; a site file picks MicroShift; the distro builds the data disks into its default Pool. Until the distro's branch installer/purpose builds, `purpose.Containerfile` adds its unit and labels to the published image.
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
