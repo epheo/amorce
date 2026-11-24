@@ -57,7 +57,12 @@ for _ in $(seq 1 600); do
   sleep 1
 done
 [ -n "$url" ] || { echo "no web address on the console"; exit 1; }
-code=$(curl -sk -m 10 -o /dev/null -w '%{http_code}' "$url/")
+# The banner shows before the UI serves.
+for _ in $(seq 1 120); do
+  code=$(curl -sk -m 10 -o /dev/null -w '%{http_code}' "$url/" || true)
+  [ "$code" = 200 ] && break
+  sleep 5
+done
 echo "$url answers $code"
 [ "$code" = 200 ]
 tr -d '\r' < "$log" | grep -a -q "^$name login:" && echo "hostname $name"
