@@ -1,0 +1,218 @@
+// Package engine owns the install: what was found, what was chosen, and the
+// install itself. Frontends only read snapshots and call its methods.
+package engine
+
+import (
+	"context"
+	"net/netip"
+	"time"
+)
+
+// Step is the wizard screen every frontend shows.
+type Step int
+
+const (
+	StepHello Step = iota
+	StepNetwork
+	StepPurpose
+	StepDisks
+	StepName
+	StepConfirm
+	StepInstalling
+	StepReady
+)
+
+// WizardSteps counts the screens before the install starts.
+const WizardSteps = int(StepConfirm) + 1
+
+type Machine struct {
+	CPUs        int
+	MemoryBytes uint64
+	UEFI        bool
+	SecureBoot  bool
+	Disks       []Disk
+	NICs        []NIC
+}
+
+type Disk struct {
+	Name   string // kernel name, e.g. sda
+	Path   string // stable /dev/disk/by-id path
+	Model  string
+	Serial string
+	Size   uint64
+	SSD    bool
+	// Holds says what is on the disk now; empty when it looks blank.
+	Holds string
+	// Health is empty when SMART has nothing to say.
+	Health  string
+	Failing bool
+}
+
+type NIC struct {
+	Name      string
+	MAC       string
+	Carrier   bool
+	SpeedMbps int
+	Neighbor  *Neighbor
+}
+
+// Neighbor is what the switch port announces over LLDP.
+type Neighbor struct {
+	Switch string
+	Port   string
+	VLAN   int // port VLAN, 0 when not announced
+	Seen   time.Time
+}
+
+// Purpose is one installable image, described by labels on that image.
+type Purpose struct {
+	ID       string
+	Name     string
+	Summary  string
+	Includes []string
+	// Source is the bootc source image reference, e.g. oci:/run/media/images/x:latest.
+	Source string
+	// Target is where updates come from after install.
+	Target string
+	// DataDisks is how the purpose uses disks beyond the system disk: none or pairs.
+	DataDisks string
+	// Bytes is the image's compressed size, for install progress.
+	Bytes int64
+	// NeedsSecureBootOff is set when the image cannot run with Secure Boot on.
+	NeedsSecureBootOff bool
+}
+
+type NetMode int
+
+const (
+	NetDHCP NetMode = iota
+	NetStatic
+)
+
+type NetConfig struct {
+	Mode    NetMode
+	Iface   string
+	VLAN    int // 0 is untagged
+	Address netip.Prefix
+	Gateway netip.Addr
+	DNS     []netip.Addr
+}
+
+// Check is one live test result.
+type Check int
+
+const (
+	CheckUnknown Check = iota
+	CheckOK
+	CheckFailed
+)
+
+type NetReport struct {
+	Config NetConfig // what is in effect, with the DHCP lease filled in
+	Up     bool      // an address is configured
+	// Conflict is set when another machine answers for our address.
+	Conflict string
+	Gateway  Check
+	DNS      Check
+	// GatewayVLANs lists where the gateway answers instead; 0 is untagged.
+	GatewayVLANs []int
+	At           time.Time
+}
+
+type DiskPlan struct {
+	System string // disk name
+	Pools  []Pool
+	Unused []string
+}
+
+type Pool struct {
+	Name  string
+	Raid  string // raid1 or none
+	Disks []string
+}
+
+type StepStatus int
+
+const (
+	Pending StepStatus = iota
+	Running
+	Done
+	Skipped
+	Failed
+)
+
+type InstallStep struct {
+	Title  string
+	Status StepStatus
+	Detail string
+}
+
+type InstallState struct {
+	Steps    []InstallStep
+	Progress float64 // whole install, 0 to 1
+	Started  time.Time
+	Log      []string
+	Finished bool
+	Err      string
+	// MOKPassword is set when the next start asks to enroll our key.
+	MOKPassword string
+}
+
+// InstallRequest is everything the install needs; nothing else is read.
+type InstallRequest struct {
+	Machine  Machine
+	Purpose  Purpose
+	Plan     DiskPlan
+	Net      NetConfig
+	Hostname string
+	Keyboard string
+}
+
+// InstallEvent reports install progress from the system to the engine.
+type InstallEvent struct {
+	Step     int // index into InstallSteps
+	Status   StepStatus
+	Detail   string
+	Progress float64 // within the step, 0 to 1
+	Log      string
+	MOK      string
+}
+
+// System is every side effect: the live media in production, a fake in demos.
+type System interface {
+	Discover(ctx context.Context) (Machine, error)
+	Purposes(ctx context.Context) ([]Purpose, error)
+	Keymaps() []string
+	SetKeymap(name string) error
+	// Network returns the address the live system has now, if any.
+	Network(ctx context.Context) NetReport
+	// TestNetwork applies cfg to the live system and tests it.
+	TestNetwork(ctx context.Context, cfg NetConfig) NetReport
+	// Neighbors reports switch ports heard over LLDP until ctx ends.
+	Neighbors(ctx context.Context, found func(nic string, n Neighbor))
+	Install(ctx context.Context, req InstallRequest, ev func(InstallEvent)) error
+	Reboot() error
+}
+
+// InstallSteps are the install's visible steps, in order.
+var InstallSteps = []string{
+	"Check the hardware",
+	"Wipe the chosen disks",
+	"Copy the system image",
+	"Apply network settings",
+	"Hand data disks over",
+	"Add the Secure Boot key",
+}
+
+// Install step indexes, for System implementations.
+const (
+	InstCheck = iota
+	InstWipe
+	InstCopy
+	InstNetwork
+	InstData
+	InstSecureBoot
+)
+
+// stepWeights spread the progress bar; copying the image dominates.
+var stepWeights = []float64{0.03, 0.05, 0.80, 0.04, 0.04, 0.04}

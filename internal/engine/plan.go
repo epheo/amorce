@@ -1,0 +1,167 @@
+package engine
+
+import (
+	"fmt"
+	"slices"
+)
+
+// minSystemBytes is the smallest disk bootc images fit on with room to update.
+const minSystemBytes = 32 << 30
+
+// BestFit picks the purpose the hardware suits: Storage when spare disks pair up.
+func BestFit(m Machine, ps []Purpose) Purpose {
+	best := ps[0]
+	for _, p := range ps {
+		if p.DataDisks == "pairs" && len(ProposePlan(m, p).Pools) > 0 {
+			return p
+		}
+	}
+	return best
+}
+
+// BestFitReason explains BestFit's choice in one line, or returns "".
+func BestFitReason(m Machine, p Purpose) string {
+	if p.DataDisks != "pairs" {
+		return ""
+	}
+	plan := ProposePlan(m, p)
+	n := 0
+	for _, pool := range plan.Pools {
+		n += len(pool.Disks)
+	}
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Best fit because %d data disks were found.", n)
+}
+
+// ProposePlan suggests a system disk and what the purpose does with the rest.
+func ProposePlan(m Machine, p Purpose) DiskPlan {
+	var plan DiskPlan
+	disks := slices.Clone(m.Disks)
+	slices.SortStableFunc(disks, func(a, b Disk) int {
+		switch {
+		case a.Failing != b.Failing:
+			return boolCmp(a.Failing, b.Failing)
+		case a.SSD != b.SSD:
+			return boolCmp(!a.SSD, !b.SSD)
+		case a.Size != b.Size:
+			return cmpU64(a.Size, b.Size)
+		}
+		return 0
+	})
+	for _, d := range disks {
+		if d.Size >= minSystemBytes && !d.Failing {
+			plan.System = d.Name
+			break
+		}
+	}
+	var rest []Disk
+	for _, d := range m.Disks {
+		if d.Name != plan.System {
+			rest = append(rest, d)
+		}
+	}
+	if p.DataDisks != "pairs" {
+		for _, d := range rest {
+			plan.Unused = append(plan.Unused, d.Name)
+		}
+		return plan
+	}
+	plan.Pools, plan.Unused = pairUp(rest)
+	return plan
+}
+
+// pairUp mirrors disks of the same kind and size; the odd ones stay unused.
+func pairUp(disks []Disk) ([]Pool, []string) {
+	type key struct {
+		ssd  bool
+		size uint64
+	}
+	groups := map[key][]Disk{}
+	var order []key
+	var unused []string
+	for _, d := range disks {
+		if d.Failing {
+			unused = append(unused, d.Name)
+			continue
+		}
+		k := key{d.SSD, d.Size}
+		if _, ok := groups[k]; !ok {
+			order = append(order, k)
+		}
+		groups[k] = append(groups[k], d)
+	}
+	var pools []Pool
+	count := map[string]int{}
+	for _, k := range order {
+		g := groups[k]
+		tier := "hdd"
+		if k.ssd {
+			tier = "ssd"
+		}
+		for i := 0; i+1 < len(g); i += 2 {
+			count[tier]++
+			pools = append(pools, Pool{
+				Name:  fmt.Sprintf("%s-%d", tier, count[tier]),
+				Raid:  "raid1",
+				Disks: []string{g[i].Name, g[i+1].Name},
+			})
+		}
+		if len(g)%2 == 1 {
+			unused = append(unused, g[len(g)-1].Name)
+		}
+	}
+	return pools, unused
+}
+
+// Erased lists every disk the plan wipes: the system disk and pool members.
+func (p DiskPlan) Erased() []string {
+	var out []string
+	if p.System != "" {
+		out = append(out, p.System)
+	}
+	for _, pool := range p.Pools {
+		out = append(out, pool.Disks...)
+	}
+	return out
+}
+
+// PlanFromRoles rebuilds a plan after the user assigned roles by hand.
+func PlanFromRoles(m Machine, system string, data map[string]bool) DiskPlan {
+	plan := DiskPlan{System: system}
+	var rest []Disk
+	for _, d := range m.Disks {
+		switch {
+		case d.Name == system:
+		case data[d.Name]:
+			rest = append(rest, d)
+		default:
+			plan.Unused = append(plan.Unused, d.Name)
+		}
+	}
+	pools, unused := pairUp(rest)
+	plan.Pools = pools
+	plan.Unused = append(plan.Unused, unused...)
+	return plan
+}
+
+func boolCmp(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return 1
+	}
+	return -1
+}
+
+func cmpU64(a, b uint64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
+}
