@@ -336,10 +336,10 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 	files := map[string]string{
 		"etc/hostname":      req.Hostname + "\n",
 		"etc/vconsole.conf": setKey(readFile(filepath.Join(deploy, "etc/vconsole.conf")), "KEYMAP", req.Keyboard),
-		NodeConfigPath:      nodeConfig(req),
+		NodeConfigPath:      NodeConfig(req.Hostname, req.Net),
 	}
-	for name, body := range keyfiles(req.Net) {
-		files["etc/NetworkManager/system-connections/"+name+".nmconnection"] = body
+	for name, body := range Keyfiles(req.Net) {
+		files[KeyfileDir+"/"+name+".nmconnection"] = body
 	}
 	var written []string
 	if req.Site != nil {
@@ -374,12 +374,12 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 	return s.relabel(ctx, deploy, written)
 }
 
-// nodeConfig pins what MicroShift would otherwise guess: the node keeps its
+// NodeConfig pins what MicroShift would otherwise guess: the node keeps its
 // name if the hostname changes, and keeps the address workers reach.
-func nodeConfig(req engine.InstallRequest) string {
-	b := "# Written by the installer.\nnode:\n  hostnameOverride: " + req.Hostname + "\n"
-	if req.Net.Mode == engine.NetStatic && req.Net.Address.IsValid() {
-		b += "  nodeIP: " + req.Net.Address.Addr().String() + "\n"
+func NodeConfig(hostname string, net engine.NetConfig) string {
+	b := "# Written by the installer.\nnode:\n  hostnameOverride: " + hostname + "\n"
+	if net.Mode == engine.NetStatic && net.Address.IsValid() {
+		b += "  nodeIP: " + net.Address.Addr().String() + "\n"
 	}
 	return b
 }
@@ -424,8 +424,11 @@ func (s *System) relabel(ctx context.Context, deploy string, paths []string) err
 	return err
 }
 
-// keyfiles turns the chosen network into NetworkManager profiles.
-func keyfiles(c engine.NetConfig) map[string]string {
+// KeyfileDir holds the profiles Keyfiles writes, by name.
+const KeyfileDir = "etc/NetworkManager/system-connections"
+
+// Keyfiles turns the chosen network into NetworkManager profiles.
+func Keyfiles(c engine.NetConfig) map[string]string {
 	ip := "[ipv4]\nmethod=auto\n"
 	if c.Mode == engine.NetStatic {
 		ip = fmt.Sprintf("[ipv4]\nmethod=manual\naddress1=%s", c.Address)

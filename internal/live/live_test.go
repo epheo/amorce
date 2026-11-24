@@ -41,7 +41,7 @@ func TestKeyfilesVLAN(t *testing.T) {
 	c := engine.NetConfig{Mode: engine.NetStatic, Iface: "eno1", VLAN: 110,
 		Address: netip.MustParsePrefix("10.20.120.11/24"), Gateway: netip.MustParseAddr("10.20.120.1"),
 		DNS: []netip.Addr{netip.MustParseAddr("10.20.0.53")}}
-	k := keyfiles(c)
+	k := Keyfiles(c)
 	if !strings.Contains(k["eno1"], "method=disabled") {
 		t.Fatalf("parent carries an address:\n%s", k["eno1"])
 	}
@@ -54,7 +54,7 @@ func TestKeyfilesVLAN(t *testing.T) {
 }
 
 func TestKeyfilesDHCP(t *testing.T) {
-	k := keyfiles(engine.NetConfig{Mode: engine.NetDHCP, Iface: "enp1s0"})
+	k := Keyfiles(engine.NetConfig{Mode: engine.NetDHCP, Iface: "enp1s0"})
 	if len(k) != 1 || !strings.Contains(k["enp1s0"], "method=auto") {
 		t.Fatalf("got %v", k)
 	}

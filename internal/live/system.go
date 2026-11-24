@@ -132,6 +132,17 @@ func (s *System) Reboot() error {
 	return err
 }
 
+// LinkedNIC is the first network interface with a link: the one an
+// install takes when the site file names none.
+func LinkedNIC() string {
+	for _, n := range physicalNICs() {
+		if readSys(filepath.Join("/sys/class/net", n, "carrier")) == "1" {
+			return n
+		}
+	}
+	return ""
+}
+
 // Identity is what site files match this machine by.
 func Identity() site.Identity {
 	id := site.Identity{Serial: DMISerial()}

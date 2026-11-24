@@ -184,6 +184,9 @@ func (f *File) Find(id Identity) (Answers, bool) {
 	return Answers{}, false
 }
 
+// Matches says whether m names the machine id.
+func (m Machine) Matches(id Identity) bool { return m.Match.matches(id) }
+
 func (m Match) matches(id Identity) bool {
 	if m.Serial != "" && strings.EqualFold(strings.TrimSpace(m.Serial), strings.TrimSpace(id.Serial)) {
 		return true

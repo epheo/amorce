@@ -32,7 +32,7 @@ func TestSiteForRoundTrips(t *testing.T) {
 	if !ok {
 		t.Fatalf("no match:\n%s", b)
 	}
-	c, msg := siteNet(a, m)
+	c, msg := SiteNet(a, m)
 	want := st.Net.Config
 	if msg != "" || c.Iface != want.Iface || c.VLAN != want.VLAN || c.Address != want.Address || c.Gateway != want.Gateway {
 		t.Fatalf("%q %+v", msg, c)

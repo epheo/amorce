@@ -103,7 +103,7 @@ func (e *Engine) runSite(ctx context.Context, a site.Answers) {
 		}
 	}
 
-	cfg, msg := siteNet(a, e.Snapshot().Machine)
+	cfg, msg := SiteNet(a, e.Snapshot().Machine)
 	if msg != "" {
 		fail(StepNetwork, msg)
 		return
@@ -201,8 +201,8 @@ func (e *Engine) runSite(ctx context.Context, a site.Answers) {
 	}
 }
 
-// siteNet turns the answers into settings, or says what is missing.
-func siteNet(a site.Answers, m Machine) (NetConfig, string) {
+// SiteNet turns the answers into settings, or says what is missing.
+func SiteNet(a site.Answers, m Machine) (NetConfig, string) {
 	var n site.Network
 	if a.Network != nil {
 		n = *a.Network

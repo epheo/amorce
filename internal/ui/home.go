@@ -48,6 +48,9 @@ func (m *Model) keyHome(s string) tea.Cmd {
 		m.homeBoard = !m.homeBoard
 	case s == "esc":
 		m.homeBoard = false
+	case s == "f2" && m.opt.Settings != nil:
+		m.homeBoard = false
+		m.openSettings()
 	case s == "f4" && m.home.CanAdd && m.opt.Words != nil:
 		m.opt.Words()
 		m.home = m.opt.Home()
@@ -137,6 +140,9 @@ func (m *Model) viewHome() screen {
 		fullscreen: true, focusFrom: -1, title: h.Name, bar: "HOME",
 		right: strings.Join(append([]string{h.Name}, h.Address...), "  "),
 	}
+	if m.opt.Settings != nil {
+		sc.help = append(sc.help, [2]string{"F2", "settings"})
+	}
 	switch {
 	case m.homeBoard:
 		sc.help = append(sc.help, [2]string{"esc", "back"})
@@ -145,14 +151,13 @@ func (m *Model) viewHome() screen {
 	}
 	switch {
 	case h.CanAdd && len(h.Words) > 0:
-		sc.help = append(sc.help, [2]string{"F4", "close the words"})
+		sc.help = append(sc.help, [2]string{"F4", "close words"})
 	case h.CanAdd:
 		sc.help = append(sc.help, [2]string{"F4", "add machines"})
 	}
 	if m.opt.Login != nil {
-		sc.help = append(sc.help, [2]string{"enter", "log in"})
+		sc.help = append(sc.help, [2]string{"enter", "log in"}, [2]string{"alt+F2", "console"})
 	}
-	sc.help = append(sc.help, [2]string{"alt+F2", "another console"})
 	lines = squeeze(lines, rows)
 	sc.layers = append(sc.layers, lipgloss.NewLayer(strings.Join(lines, "\n")).X(l.leftX).Y(3))
 	return sc

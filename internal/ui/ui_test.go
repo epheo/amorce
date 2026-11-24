@@ -13,6 +13,7 @@ import (
 
 	"github.com/epheo/microshift-installer/internal/demo"
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 // Every step renders within the terminal at the mockups' size and at 80x24.
@@ -144,7 +145,7 @@ func TestHomeFits(t *testing.T) {
 				}
 			}
 			for _, want := range []string{"3A:4F:9C", "E9:27", "Machines in site lab", "correct-horse-staple",
-				"aardvark gigabyte outhouse reunion uncle zigzagged", "F4 close the words"} {
+				"aardvark gigabyte outhouse reunion uncle zigzagged", "F4 close words"} {
 				if !strings.Contains(out, want) {
 					t.Errorf("%v %v: %q missing:\n%s", size, look, want, out)
 				}
@@ -209,5 +210,73 @@ func TestJoinFits(t *testing.T) {
 		if st := eng.Snapshot(); st.Profile != "worker" || st.Hostname != "srv-03" {
 			t.Errorf("%v: not joined: %q %q", size, st.Profile, st.Hostname)
 		}
+	}
+}
+
+type fakeSettings struct{ set site.Answers }
+
+func (f *fakeSettings) Network() (site.Answers, string) {
+	return site.Answers{Address: "10.20.120.11/24", Network: &site.Network{Interface: "eno1", VLAN: 110, Gateway: "10.20.120.1"}}, ""
+}
+func (f *fakeSettings) SetNetwork(a site.Answers) error { f.set = a; return nil }
+func (f *fakeSettings) HasRootPassword() bool           { return false }
+func (f *fakeSettings) SetRootPassword(string) error    { return nil }
+func (f *fakeSettings) Restart() error                  { return nil }
+func (f *fakeSettings) PowerOff() error                 { return nil }
+
+// F2 settings fit, and the network form hands checked answers over.
+func TestSettings(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {80, 24}} {
+		fs := &fakeSettings{}
+		m := New(context.Background(), nil, Options{Look: LookNormal, Home: DemoHome, Settings: fs})
+		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		check := func(what string, want ...string) {
+			t.Helper()
+			out := ansi.Strip(m.View().Content)
+			if len(strings.Split(out, "\n")) > size[1] || strings.Contains(out, "…") {
+				t.Errorf("%v %s: does not fit:\n%s", size, what, out)
+			}
+			for _, w := range want {
+				if !strings.Contains(out, w) {
+					t.Errorf("%v %s: %q missing:\n%s", size, what, w, out)
+				}
+			}
+		}
+		press := func(keys ...rune) {
+			for _, k := range keys {
+				m.Update(tea.KeyPressMsg{Code: k})
+			}
+		}
+		typeText := func(s string) {
+			for _, r := range s {
+				m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+			}
+		}
+		check("home", "F2 settings")
+		press(tea.KeyF2)
+		check("menu", "Settings", "10.20.120.11/24, VLAN 110, gateway 10.20.120.1", "not set")
+		press(tea.KeyEnter)
+		check("network", "eno1", "Gateway")
+		m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+		typeText("10.20.120.300/24")
+		press(tea.KeyEnter)
+		check("bad address", "is not an address")
+		m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+		typeText("10.20.120.12/24")
+		press(tea.KeyEnter)
+		check("confirm", "restarts to use it")
+		_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if cmd == nil {
+			t.Fatalf("%v: no apply", size)
+		}
+		m.Update(cmd())
+		if fs.set.Address != "10.20.120.12/24" || fs.set.Network.VLAN != 110 || fs.set.Network.Interface != "eno1" {
+			t.Errorf("%v: applied %+v %+v", size, fs.set, fs.set.Network)
+		}
+		check("after", "Restarting.")
+		press(tea.KeyDown, tea.KeyEnter)
+		typeText("short")
+		press(tea.KeyEnter, tea.KeyEnter)
+		check("password", "Eight characters at least.")
 	}
 }

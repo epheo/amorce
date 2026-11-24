@@ -84,10 +84,12 @@ func consoleCmd(args []string) error {
 	go h.gather(ctx)
 
 	cmdline, _ := os.ReadFile("/proc/cmdline")
+	set := &settings{h: h, root: "/", sitePath: *sitePath}
 	model := func(opt ui.Options) *ui.Model {
-		opt.Shell, opt.Home, opt.Words = nil, h.info, h.toggleWords
+		opt.Shell, opt.Home, opt.Words, opt.Settings = nil, h.info, h.toggleWords, set
 		return ui.New(ctx, nil, opt)
 	}
+	go serveSSH(*stateDir, model, logf)
 	serve(ctx, ttys, *lookName, string(cmdline), logf, model, nil)
 	return nil
 }
@@ -143,6 +145,7 @@ func (h *home) self() report.Report {
 	name, _ := os.Hostname()
 	h.mu.Lock()
 	r := report.Report{Name: name, Serial: h.id.Serial, State: h.state, Detail: h.detail}
+	worker := h.answers.Profile == site.Worker
 	h.mu.Unlock()
 	if len(h.id.MACs) > 0 {
 		r.MAC = h.id.MACs[0]
@@ -150,7 +153,7 @@ func (h *home) self() report.Report {
 	if a := ownAddresses(); len(a) > 0 {
 		r.Address = a[0]
 	}
-	if h.answers.Profile == site.Worker {
+	if worker {
 		r.Role = report.Worker
 	}
 	if h.site != nil {
@@ -195,7 +198,7 @@ func (h *home) toggleWords() {
 // info is the latest gathered view; the screen never waits on a command.
 func (h *home) info() ui.HomeInfo {
 	h.mu.Lock()
-	i, fm, state, detail := h.last, h.first, h.state, h.detail
+	i, fm, state, detail, worker := h.last, h.first, h.state, h.detail, h.answers.Profile == site.Worker
 	h.mu.Unlock()
 	switch {
 	case fm != nil:
@@ -209,9 +212,9 @@ func (h *home) info() ui.HomeInfo {
 		i.Cluster = fmt.Sprintf("first machine, %d %s joined", workers, plural(workers, "worker", "workers"))
 		i.Words, i.WordsUntil, i.WordsNote = fm.wordsShown()
 		i.CanAdd = true
-	case h.answers.Profile == site.Worker && state == report.Joining:
+	case worker && state == report.Joining:
 		i.Cluster, i.ClusterBusy = "worker of "+h.site.Report.Host()+", joining: "+detail, true
-	case h.answers.Profile == site.Worker:
+	case worker:
 		i.Cluster = "worker of " + h.site.Report.Host()
 	}
 	return i

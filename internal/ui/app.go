@@ -28,6 +28,8 @@ type Options struct {
 	Login func() tea.ExecCommand
 	// Words shows the first machine's join words, or closes them.
 	Words func()
+	// Settings backs the installed console's F2; nil disables it.
+	Settings Settings
 }
 
 // EngineMsg tells the model the engine state changed.
@@ -66,6 +68,7 @@ type Model struct {
 	home       HomeInfo
 	homeBoard  bool
 	join       *joinForm
+	set        *settingsView
 }
 
 func New(ctx context.Context, eng *engine.Engine, opt Options) *Model {
@@ -114,6 +117,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, tick()
+	case settingDoneMsg:
+		m.settingDone(msg)
 	case shellDoneMsg:
 		if msg.err != nil {
 			m.note = "The shell ended: " + msg.err.Error()
@@ -158,6 +163,9 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 	if m.opt.Home != nil {
+		if m.set != nil {
+			return m.keySettings(s, k)
+		}
 		return m.keyHome(s)
 	}
 	if s == "f12" && m.opt.Shell != nil {
@@ -374,6 +382,9 @@ func (m *Model) statusBar(sc screen, width int) string {
 
 func (m *Model) screen() screen {
 	if m.opt.Home != nil {
+		if m.set != nil {
+			return m.viewSettings()
+		}
 		return m.viewHome()
 	}
 	if m.kb != nil {

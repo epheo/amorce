@@ -165,6 +165,11 @@ The distro ships this binary; `installer console` takes tty1 of every installed 
 - What the purpose tells its admins: every `issue.d/*.issue` file, wrapped, never cut; stornas puts its web address, fingerprint and first password there.
 - On the first machine, the board of the site's machines.
 - Enter starts a login on tty1; alt+F2 has a plain one; the serial console keeps its getty.
+- F2, settings: the network, a root password, restart, shut down.
+- A new address rewrites what the installer wrote (the NetworkManager profile, MicroShift's `node.nodeIP`, this machine's site file entry), then restarts: configure-ovs builds br-ex from the profile at every start.
+- Only a machine nobody else reaches can change its address: not a worker, and not a first machine others report to.
+- The console asks no password for its settings: whoever has the console has the machine, as with the installer.
+- `ssh -p 2222 root@<machine>`: the same console, its board, words and settings, for root's SSH keys (Wish, in the console's process).
 - Kernel messages for the screen go to tty12 (alt+F12, as on ESXi), so they never scroll the console; serial consoles still get them.
 - It never waits on a command: systemd is asked every 2 seconds in the background, bootc once per boot.
 - Styled when the font loads, normal otherwise, like the wizard.
@@ -245,7 +250,7 @@ One layout, three looks:
 
 - Styled console: tty1 on the monitor and BMC screen.
 - Normal console: stock colors and font; the serial console, and tty1 whenever styling fails.
-- True color: `installer demo` in a modern terminal; SSH later.
+- True color: `installer demo` in a modern terminal, and the console over SSH.
 - The normal console is the baseline: every screen works there.
 - Meaning never rests on color alone: every state has a symbol and a word.
 
@@ -342,6 +347,7 @@ machines:
 - `test/vm/media.sh BASE`: the installer ISO, and a payload of the OS image BASE with the installed console added as the distro adds it (`console.Containerfile`).
 - `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console.
 - `KMOD_KEY=key.pem PAYLOAD=msi-signed.iso test/vm/media.sh BASE`, then `PAYLOAD=msi-signed.iso test/vm/mok.sh VM PORT`: an image with DRBD signed by a test key, the way the distro signs it (`signed.Containerfile`); Secure Boot on; an unattended install queues the key; the test answers MokManager over the serial console; DRBD must load under lockdown.
+- `test/vm/settings.sh VM PORT`: over SSH to an installed console, a root password and a new address; the machine restarts on it, MicroShift and the UI follow, the password logs in, and F2 opens the settings on tty1. `ptydrive.py` drives the SSH session.
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
@@ -364,7 +370,7 @@ Designed during implementation, not in the mockups:
 2. Site file, unattended installs, reporting to the first machine's installed console: done, in VMs.
 3. Join: workers from the site file and by words, discovery: done, in VMs.
 4. Secure Boot enrollment: done, in VMs with a test key; the distro's signing waits for the project key.
-5. Installed console: the screen and board are done; next, changing settings from it (network, like ESXi's F2), and an SSH frontend through Wish.
+5. Installed console: the screen, the board, settings (F2), and SSH through Wish: done, in VMs.
 
 ## Dependencies
 
@@ -379,5 +385,6 @@ Designed during implementation, not in the mockups:
 - Bonds: offered when two links reach different switches, or always asked?
 - Unattended installs with Secure Boot on: MOK needs a person per machine; check BMC (Redfish) enrollment into db, which the kernel puts in .platform, not .machine.
 - A 16x32 font drawn for that size rather than doubled.
-- The site token never expires; rotating it from the first machine's console is planned with settings (phase 5).
+- The site token never expires; rotating it means a new site file for every machine.
+- Settings at the console need no login; a site that wants one could ask for it in the site file.
 - Repo name.
