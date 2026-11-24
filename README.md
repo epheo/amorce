@@ -40,7 +40,7 @@ podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/microshift-install
 
 - MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels on the distro's branch installer/purpose.
 - Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication. Labels on stornas's branch installer-plan.
-- Virtualization: no public image yet; da2 is one site's image (its node name, its VGs), not one to install elsewhere.
+- Virtualization: dotvirt's `image/` (branch image/virtualization); KubeVirt, CDI, Argo CD, dotvirt, its console on port 30443.
 - Each image describes itself in labels; the installer hard-codes no purpose.
 - Each purpose works without the installer: the installer only feeds its own mechanisms (the distro's below).
 - An image without labels can be described by `iso` flags (`--name`, `--summary`, `--data-disks`...).
@@ -356,6 +356,7 @@ machines:
 - `KMOD_KEY=key.pem PAYLOAD=msi-signed.iso test/vm/media.sh BASE`, then `PAYLOAD=msi-signed.iso test/vm/mok.sh VM PORT`: an image with DRBD signed by a test key, the way the distro signs it (`signed.Containerfile`); Secure Boot on; an unattended install queues the key; the test answers MokManager over the serial console; DRBD must load under lockdown.
 - `test/vm/settings.sh VM PORT`: over SSH to an installed console, a root password and a new address; the machine restarts on it, MicroShift and the UI follow, the password logs in, and F2 opens the settings on tty1. `ptydrive.py` drives the SSH session.
 - `test/vm/purpose.sh VM PORT`: media with MicroShift beside Storage; a site file picks MicroShift; the distro builds the data disks into its default Pool. Until the distro's branch installer/purpose builds, `purpose.Containerfile` adds its unit and labels to the published image.
+- `test/vm/virt.sh VM PORT`: the Virtualization image installed unattended with no registry in reach; KubeVirt, CDI and dotvirt come up from embedded images; the console answers HTTPS on the machine's address with the certificate its screen shows; a token signs the first admin in.
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
@@ -386,7 +387,8 @@ Designed during implementation, not in the mockups:
 
 - stornas: the install-plan branch, and the labels in its image.
 - distro: the installed console lines above, once this repo publishes its image; branch installer/purpose (labels, the data disks unit); branch kmod/sign-drbd and its KMOD_SIGNING_KEY secret.
-- A Virtualization image, public, with KubeVirt, CDI, Argo CD and dotvirt; registry credentials for updates after an offline install.
+- dotvirt: branches operator/hostless-gateway and image/virtualization; portail: branch gateway/fixed-nodeport, then a release the distro embeds.
+- Registry credentials for updates after an offline install.
 
 ## Open questions
 
