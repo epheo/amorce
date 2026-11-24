@@ -60,7 +60,7 @@ func firstLines(s string, n int) string {
 }
 
 func (s *System) Discover(ctx context.Context) (engine.Machine, error) {
-	m := engine.Machine{CPUs: runtime.NumCPU(), MemoryBytes: memTotal()}
+	m := engine.Machine{Serial: dmiSerial(), CPUs: runtime.NumCPU(), MemoryBytes: memTotal()}
 	if _, err := os.Stat("/sys/firmware/efi"); err == nil {
 		m.UEFI = true
 		m.SecureBoot = secureBoot()
@@ -72,6 +72,22 @@ func (s *System) Discover(ctx context.Context) (engine.Machine, error) {
 	m.Disks = disks
 	m.NICs = s.nics(ctx)
 	return m, nil
+}
+
+// dmiSerial is the machine's serial number, or "" when the firmware left a
+// placeholder that many machines share.
+func dmiSerial() string {
+	for _, f := range []string{"product_serial", "chassis_serial", "board_serial"} {
+		b, _ := os.ReadFile("/sys/class/dmi/id/" + f)
+		v := strings.TrimSpace(string(b))
+		switch strings.ToLower(v) {
+		case "", "none", "not specified", "to be filled by o.e.m.", "system serial number",
+			"chassis serial number", "default string", "0123456789", "0":
+			continue
+		}
+		return v
+	}
+	return ""
 }
 
 func memTotal() uint64 {

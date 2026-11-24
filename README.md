@@ -1,7 +1,7 @@
 # microshift-installer
 
 Boot media and console wizard that install any image built FROM ghcr.io/epheo/microshift.
-Status: phase 1 works in VMs: attended install of one machine, styled and normal consoles.
+Status: in VMs, attended installs on styled and normal consoles, and unattended installs from a site file.
 Screen mockups: the "Installer TUI UX" canvas.
 
 ## Use
@@ -17,6 +17,16 @@ podman run --rm -v $PWD/out:/out:Z localhost/microshift-installer:dev \
 - Keys are listed on every screen; F12 opens a shell; alt+F2 has another.
 - The boot menu has a second entry with the normal console look.
 - `installer demo` runs the wizard on a fake machine in any terminal.
+
+Many machines: every install keeps its answers in `/etc/microshift-installer/site.yaml`.
+Add machines to that file, then make small site media to boot beside the same ISO:
+
+```
+podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/microshift-installer:dev \
+  iso --payload-only --site /in/site.yaml --out /out/site.iso
+```
+
+- `--site` on the main ISO works too; site media keep that ISO generic.
 
 ## Goal
 
@@ -110,10 +120,15 @@ Attended, first machine:
 7. Installing: check, wipe, copy the image, write network, hand over the data plan, add the Secure Boot key.
 8. Ready: what the next start does; restarts by itself after 10 seconds unless a key is pressed.
 
+Unattended, when a site file names the machine:
+
+- Hello says which machine this is, checks every answer in wizard order, then counts down 10 s; any key on any console stops it.
+- The first answer missing or failing opens the wizard on that screen, with the reason; every answer before it stays filled in.
+- It stops at Confirm before erasing a disk that holds something, unless the file says `erase: any`, and when Secure Boot needs a decision.
+- A site file that does not name the machine is said on Hello; the serial number is on Hello's panel, to add it.
+
 Planned:
 
-- Unattended: the site file answers every screen; a countdown any key stops.
-- A field missing from the site file opens the wizard on that field only.
 - Join: pick a discovered cluster or type its address; compare six words with its console.
 
 ## Reporting (planned)
@@ -228,39 +243,44 @@ All consoles:
 - Serial consoles ask the terminal for its size (cursor position report); no answer means 80x24.
 - 100x30 and up: the mockups' layout, centered; smaller: no side panel, spare blank lines dropped.
 
-## Site file (planned)
+## Site file
 
 ```yaml
 site: lab
 defaults:
-  purpose: storage
+  purpose: storage                 # an id from the media; optional with one purpose
   keyboard: fr
-  admin: {password_hash: "$6$..."}
-  network:
-    vlan: 110
-    gateway: 10.20.120.1
-    dns: [10.20.0.53]
-    ntp: [10.20.0.123]
+  network: {interface: eno1, vlan: 110, gateway: 10.20.120.1, dns: [10.20.0.53]}
+  disks: {system: auto, data: auto, erase: blank}
+  ssh_authorized_keys: ["ssh-ed25519 AAAA... admin@lab"]   # for root
 machines:
   - match: {serial: CZ2041XY7K}
     name: srv-02
-    address: 10.20.120.12/24
-    join: {address: 10.20.120.11, token: "<expiring token>"}
-    disks: {system: auto, data: same-as-first}
+    address: 10.20.120.12/24       # or dhcp
+  - match: {mac: "3c:ec:ef:00:00:03"}
+    name: srv-03
+    address: 10.20.120.13/24
+    disks: {system: nvme-SSD0002}  # kernel name, serial or by-id name
 ```
 
-- One file per site, never one per machine.
-- Machines match by serial number or MAC.
-- Written by the wizard (ctrl+s on Confirm) or by hand.
+- One file per site, never one per machine; a machine's fields override the defaults.
+- Machines match by serial number (DMI; placeholders like "To Be Filled By O.E.M." are ignored) or any MAC.
+- Unknown fields are errors, so a typo never reads as an unanswered question; `iso --site` checks the file first.
+- `disks.data`: auto (the purpose's plan) or none. `disks.erase`: blank (default) or any.
+- Read from any install medium's root: the ISO, or media labeled MSPAYLOAD*.
+- Every install writes one for its own machine, shared settings under defaults.
+- `ssh_authorized_keys` go to root through bootc; the wizard has no screen for them.
+- Planned: an admin password hash, NTP, join.
 
 ## Testing
 
-- `make test`: plan proposals, LLDP parsing, NetworkManager profiles, the font, and every screen fitting 100x30 and 80x24 in every look.
+- `make test`: plan proposals, LLDP parsing, NetworkManager profiles, the font, site files and unattended runs on the demo machine, and every screen fitting 100x30 and 80x24 in every look.
 - `installer screens DIR`: every demo screen as terminal output, to compare with the mockups.
 - `test/render`: turns that output into PNGs through a terminal emulator.
 - `test/vm/e2e.sh VM PORT`: a fresh libvirt VM boots the ISO; the wizard is driven over the serial console; the installed system must serve its web UI.
 - `SB=on test/vm/e2e.sh VM PORT`: the same with Secure Boot enforced; the warnings must show.
 - `test/vm/edge.sh VM PORT`: a PERC RAID volume and a network with no DHCP and no gateway.
+- `test/vm/site.sh VM PORT`: site media name the VM by serial; no key is pressed until the install is done; the installed system keeps the answers.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
 
@@ -279,7 +299,7 @@ Designed during implementation, not in the mockups:
 ## Phases
 
 1. Single machine, attended, one system disk; LLDP and gateway probe; styled and normal console; serial e2e. Done, in VMs.
-2. Site file, unattended installs, reporting to the first machine.
+2. Site file and unattended installs: done, in VMs. Reporting to the first machine: next.
 3. Join: join service on the first machine, discovery, words.
 4. Secure Boot enrollment, after distro module signing.
 5. Installed console screen; SSH frontend through Wish.

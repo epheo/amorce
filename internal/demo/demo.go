@@ -16,7 +16,11 @@ type System struct {
 	Speed float64
 	// RAID hides the hard disks behind one hardware RAID volume.
 	RAID bool
+	// SiteFile is the site file the media carries, if any.
+	SiteFile []byte
 }
+
+func (s *System) Site(ctx context.Context) ([]byte, error) { return s.SiteFile, nil }
 
 const tb = 1000 * 1000 * 1000 * 1000
 
@@ -26,7 +30,7 @@ func (s *System) Discover(ctx context.Context) (engine.Machine, error) {
 		return &engine.Neighbor{Switch: name, Port: "port 12", VLAN: 110, Seen: time.Now()}
 	}
 	m := engine.Machine{
-		CPUs: 16, MemoryBytes: 64 << 30, UEFI: true, SecureBoot: true,
+		Serial: "CZ2041XY7J", CPUs: 16, MemoryBytes: 64 << 30, UEFI: true, SecureBoot: true,
 		Disks: []engine.Disk{
 			{Name: "nvme0n1", Path: "/dev/disk/by-id/nvme-SSD0001", Size: 960e9, SSD: true},
 			{Name: "nvme1n1", Path: "/dev/disk/by-id/nvme-SSD0002", Size: 960e9, SSD: true},

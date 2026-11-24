@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,40 @@ func TestScreensFit(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+}
+
+// Ready keeps its buttons and their note above the help line, whatever it lists.
+func TestReadyFits(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {80, 24}} {
+		eng := engine.New(&demo.System{Speed: 1000})
+		eng.Start(context.Background())
+		for i := 0; i < 300 && (!eng.Snapshot().Discovered || eng.Snapshot().NetTesting); i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		cfg := demo.DemoNetwork()
+		cfg.VLAN = 110
+		eng.TestNetwork(context.Background(), cfg)
+		for i := 0; i < 300 && !eng.Snapshot().Net.Up; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		eng.ChooseNetwork(cfg)
+		eng.ChoosePurpose("storage")
+		if err := eng.Install(context.Background(), eng.Snapshot().Hostname); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 500 && eng.Snapshot().Step != engine.StepReady; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		m := New(context.Background(), eng, Options{Look: LookNormal})
+		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		m.Update(EngineMsg{})
+		lines := strings.Split(ansi.Strip(m.View().Content), "\n")
+		if !slices.ContainsFunc(lines[:m.layout().helpY], func(l string) bool {
+			return strings.Contains(l, "Remove the install media, then restart.")
+		}) {
+			t.Errorf("%v: the note under the buttons is lost:\n%s", size, strings.Join(lines, "\n"))
 		}
 	}
 }

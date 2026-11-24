@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/epheo/microshift-installer/internal/media"
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 type strList []string
@@ -25,7 +26,7 @@ func isoCmd(args []string) error {
 	var images strList
 	fs.Var(&images, "image", "bootc image to put on the media, repeatable (registry reference or skopeo transport:ref)")
 	label := fs.String("label", "MSINST", "volume label the live system boots from")
-	payloadOnly := fs.Bool("payload-only", false, "write only the images, labeled MSPAYLOAD, for media the installer reads beside its own")
+	payloadOnly := fs.Bool("payload-only", false, "write only the images and site file, labeled MSPAYLOAD (MSPAYLOAD-SITE with no images), for media the installer reads beside its own")
 	root := fs.String("root", "/", "live root to put on the media")
 	kargs := fs.String("kargs", "", "extra kernel arguments for the live system")
 	// One image without labels can be described by flags.
@@ -36,12 +37,18 @@ func isoCmd(args []string) error {
 	dataDisks := fs.String("data-disks", "", "none or pairs, when the image has no labels")
 	targetRef := fs.String("target", "", "registry reference updates come from, when the image is not pulled from one")
 	sbOff := fs.Bool("needs-secure-boot-off", false, "the image cannot run with Secure Boot on, when it has no label saying so")
+	sitePath := fs.String("site", "", "site file answering the wizard for the machines it names; with --payload-only alone, media for one site")
 	fs.Parse(args)
 	if *out == "" {
 		return fmt.Errorf("iso needs --out")
 	}
-	if *payloadOnly {
+	// Each medium needs its own label to be found; site media sit beside
+	// image media.
+	if *payloadOnly && *label == "MSINST" {
 		*label = "MSPAYLOAD"
+		if len(images) == 0 {
+			*label = "MSPAYLOAD-SITE"
+		}
 	}
 	work := filepath.Join(filepath.Dir(*out), ".iso-work")
 	os.RemoveAll(work)
@@ -72,6 +79,11 @@ func isoCmd(args []string) error {
 			return err
 		}
 	}
+	if *sitePath != "" {
+		if err := addSite(tree, *sitePath); err != nil {
+			return err
+		}
+	}
 	if !*payloadOnly {
 		if err := liveTree(*root, tree, *label, *kargs); err != nil {
 			return err
@@ -86,6 +98,23 @@ func isoCmd(args []string) error {
 	}
 	fmt.Println("wrote", *out)
 	return nil
+}
+
+// addSite checks the site file before any machine reads it from the media.
+func addSite(tree, path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	f, err := site.Parse(b)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(tree, 0o755); err != nil {
+		return err
+	}
+	fmt.Printf("%s: site %q, %d machines\n", path, f.Site, len(f.Machines))
+	return os.WriteFile(filepath.Join(tree, site.FileName), b, 0o644)
 }
 
 func sh(name string, args ...string) error {

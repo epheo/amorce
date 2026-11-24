@@ -9,6 +9,7 @@ import (
 
 	"github.com/epheo/microshift-installer/internal/engine"
 	"github.com/epheo/microshift-installer/internal/media"
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 // liveRoot is where dmsquash-live mounts the boot media.
@@ -53,6 +54,21 @@ func (s *System) Purposes(ctx context.Context) ([]engine.Purpose, error) {
 		}
 	}
 	return out, nil
+}
+
+// Site returns the first site file on the media, or nil.
+func (s *System) Site(ctx context.Context) ([]byte, error) {
+	for _, root := range s.mediaRoots(ctx) {
+		b, err := os.ReadFile(filepath.Join(root, site.FileName))
+		if err == nil {
+			s.logf("site file from %s", root)
+			return b, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	return nil, nil
 }
 
 // sourceDevice is the block device a purpose's images are read from.

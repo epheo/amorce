@@ -131,6 +131,11 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	if m.countdown > 0 {
 		m.countdown = -1
 	}
+	// Any key on any console hands an answered install to a person.
+	if r := m.st.Site; r != nil && !r.Stopped && m.st.Step < engine.StepInstalling {
+		m.eng.StopSite()
+		return nil
+	}
 	if s == "f12" && m.opt.Shell != nil {
 		return tea.Exec(m.opt.Shell(), func(err error) tea.Msg { return shellDoneMsg{err} })
 	}
@@ -239,8 +244,12 @@ func (m *Model) render() string {
 	for _, ly := range sc.layers {
 		layers = append(layers, ly)
 	}
-	if m.note != "" {
-		add(l.leftX, l.helpY-1, t.S(t.Warn).Render(ansi.Truncate(m.note, l.W-l.leftX-2, "…")))
+	note := m.note
+	if p := m.siteProblem(); note == "" && p != "" && !sc.fullscreen {
+		note = t.Alert + " " + p
+	}
+	if note != "" {
+		add(l.leftX, l.helpY-1, t.S(t.Warn).Render(ansi.Truncate(note, l.W-l.leftX-2, "…")))
 	}
 	add(3, l.helpY, m.helpLine(sc.help, l.W-4))
 	add(0, l.barY, m.statusBar(sc, l.W))
@@ -262,6 +271,14 @@ func (m *Model) render() string {
 }
 
 // squeeze drops blank rows, bottom first, until lines fits n rows.
+// siteProblem is why the site file needs a person on this screen, or "".
+func (m *Model) siteProblem() string {
+	if r := m.st.Site; r != nil && r.Problem != "" && m.st.Step == r.ProblemStep {
+		return r.Problem
+	}
+	return ""
+}
+
 func squeeze(lines []string, n int) []string {
 	out := append([]string(nil), lines...)
 	for i := len(out) - 1; i > 0 && len(out) > n; i-- {

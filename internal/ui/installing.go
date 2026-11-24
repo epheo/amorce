@@ -195,6 +195,10 @@ func (m *Model) viewReady() screen {
 	if a := m.address(); a != "" {
 		lines = append(lines, "", t.B(t.Title).Render("Address"), t.S(t.Fg).Render(m.netSummary()))
 	}
+	lines = append(lines, "", t.S(t.Muted).Render("Its answers, to install more like it:"),
+		t.S(t.Fg).Render("/etc/microshift-installer/site.yaml"))
+	// The box, a blank row, the buttons and their note sit above the help.
+	lines = squeeze(lines, l.helpY-8)
 	bw := 69
 	bx := (l.W - bw) / 2
 	sc := screen{

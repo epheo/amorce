@@ -24,6 +24,9 @@ func screens(dir string, w, h int) error {
 		if err := walk(dir, look, w, h); err != nil {
 			return err
 		}
+		if err := walkSite(dir, look, w, h); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -105,6 +108,40 @@ func walk(dir string, look ui.Look, w, h int) error {
 	}
 	waitFor(eng, func(s engine.State) bool { return s.Step == engine.StepReady })
 	return shot("8-ready")
+}
+
+// demoSite answers every screen for the demo machine; its sdc holds data,
+// so the run stops at Confirm unless told erase: any.
+const demoSite = `site: lab
+defaults:
+  keyboard: fr
+  network: {interface: eno1, vlan: 110, gateway: 10.20.120.1, dns: [10.20.0.53]}
+machines:
+  - match: {serial: CZ2041XY7J}
+    name: srv-02
+    purpose: %s
+    address: 10.20.120.12/24
+`
+
+// walkSite shows an answered install counting down, and one a person must finish.
+func walkSite(dir string, look ui.Look, w, h int) error {
+	for _, c := range []struct{ name, purpose string }{{"9a-site-countdown", "kubernetes"}, {"9b-site-stopped", "storage"}} {
+		ctx, cancel := context.WithCancel(context.Background())
+		eng := engine.New(&demo.System{Speed: 1000, SiteFile: []byte(fmt.Sprintf(demoSite, c.purpose))})
+		eng.Start(ctx)
+		waitFor(eng, func(s engine.State) bool {
+			return s.Site != nil && (s.Site.Countdown > 0 || s.Site.Problem != "")
+		})
+		m := ui.New(ctx, eng, ui.Options{Look: look, Where: "screen and serial console"})
+		m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		m.Update(ui.EngineMsg{})
+		err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s-%s.ans", c.name, look)), []byte(m.View().Content), 0o644)
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func waitFor(eng *engine.Engine, ok func(engine.State) bool) {

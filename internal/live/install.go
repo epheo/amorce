@@ -18,11 +18,15 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 // PlanPath is where the data disk plan lands in the installed /etc; the
 // purpose reads it once at its first start.
 const PlanPath = "etc/microshift-installer/data-disks.json"
+
+// SitePath keeps this machine's answers, to install more machines alike.
+const SitePath = "etc/microshift-installer/" + site.FileName
 
 const target = "/run/install/target"
 
@@ -178,6 +182,13 @@ func (s *System) bootcInstall(ctx context.Context, req engine.InstallRequest, sy
 	for _, k := range consoleArgs() {
 		args = append(args, "--karg", k)
 	}
+	if len(req.SSHKeys) > 0 {
+		keys := "/run/install/root-authorized-keys"
+		if err := os.WriteFile(keys, []byte(strings.Join(req.SSHKeys, "\n")+"\n"), 0o600); err != nil {
+			return err
+		}
+		args = append(args, "--root-ssh-authorized-keys", keys)
+	}
 	args = append(args, system.Path)
 	s.logf("$ bootc %s", strings.Join(args, " "))
 
@@ -327,6 +338,10 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 		files["etc/NetworkManager/system-connections/"+name+".nmconnection"] = body
 	}
 	var written []string
+	if req.Site != nil {
+		files[SitePath] = string(req.Site)
+		written = append(written, filepath.Join(deploy, filepath.Dir(SitePath)))
+	}
 	for rel, body := range files {
 		p := filepath.Join(deploy, rel)
 		mode := os.FileMode(0o644)

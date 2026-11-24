@@ -26,6 +26,8 @@ const (
 const WizardSteps = int(StepConfirm) + 1
 
 type Machine struct {
+	// Serial is the firmware's serial number, what site files match first.
+	Serial      string
 	CPUs        int
 	MemoryBytes uint64
 	UEFI        bool
@@ -169,6 +171,11 @@ type InstallRequest struct {
 	Net      NetConfig
 	Hostname string
 	Keyboard string
+	// Site is this machine's answers as a site file, kept on the installed
+	// system so more machines can be installed the same way.
+	Site []byte
+	// SSHKeys are installed for root.
+	SSHKeys []string
 }
 
 // InstallEvent reports install progress from the system to the engine.
@@ -195,6 +202,8 @@ type System interface {
 	Neighbors(ctx context.Context, found func(nic string, n Neighbor))
 	Install(ctx context.Context, req InstallRequest, ev func(InstallEvent)) error
 	Reboot() error
+	// Site returns the site file found on the media, or nil.
+	Site(ctx context.Context) ([]byte, error)
 }
 
 // InstallSteps are the install's visible steps, in order.

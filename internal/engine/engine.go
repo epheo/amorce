@@ -30,6 +30,11 @@ type State struct {
 	Plan     DiskPlan
 	Hostname string
 
+	// Site is set when a site file on the media names this machine.
+	Site *SiteRun
+	// SSHKeys come from the site file; the wizard has no screen for them.
+	SSHKeys []string
+
 	Install InstallState
 }
 
@@ -86,7 +91,9 @@ func (e *Engine) Start(ctx context.Context) {
 				s.PurposeID = BestFit(m, ps).ID
 			}
 		})
-		e.RefreshNetwork(ctx)
+		if !e.startSite(ctx) {
+			e.RefreshNetwork(ctx)
+		}
 		e.sys.Neighbors(ctx, e.setNeighbor)
 	}()
 }
@@ -126,6 +133,10 @@ func (e *Engine) Snapshot() State {
 	s.Plan.Pools = slices.Clone(s.Plan.Pools)
 	s.Plan.Unused = slices.Clone(s.Plan.Unused)
 	s.Machine.NICs = slices.Clone(s.Machine.NICs)
+	if s.Site != nil {
+		run := *s.Site
+		s.Site = &run
+	}
 	return s
 }
 
@@ -264,7 +275,9 @@ func (e *Engine) Install(ctx context.Context, confirm string) error {
 		Net:      s.Net.Config,
 		Hostname: s.Hostname,
 		Keyboard: s.Keyboard,
+		SSHKeys:  s.SSHKeys,
 	}
+	req.Site, _ = siteFor(s)
 	steps := make([]InstallStep, len(InstallSteps))
 	for i, t := range InstallSteps {
 		steps[i] = InstallStep{Title: t}

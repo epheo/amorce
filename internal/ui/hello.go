@@ -56,6 +56,22 @@ func (m *Model) viewHello() screen {
 		t.S(t.Muted).Render("Most people start a new installation."),
 		"",
 	}
+	if r := st.Site; r != nil && r.Name != "" {
+		where := "The site file"
+		if r.Site != "" {
+			where = "Site " + r.Site
+		}
+		left[1] = t.S(t.Muted).Render(where + " answers every screen.")
+		left[3] = t.B(t.Title).Render("This is " + r.Name)
+		switch {
+		case r.Checking:
+			left[4] = m.spinner() + t.S(t.Muted).Render(" Checking its answers")
+		case r.Countdown > 0:
+			left[4] = t.S(t.Fg).Render(fmt.Sprintf("Installing in %d s. ", r.Countdown)) + t.S(t.Muted).Render("Any key stops it.")
+		default:
+			left[4] = t.S(t.Muted).Render("Stopped; its answers are filled in.")
+		}
+	}
 	for i, o := range m.helloOptions() {
 		left = append(left, m.choice(o.label, i == m.helloCur))
 	}
@@ -95,6 +111,9 @@ func (m *Model) viewHello() screen {
 			}
 		}
 		kv := func(k, v string) string { return t.S(t.Muted).Width(10).Render(k) + t.S(t.Fg).Render(v) }
+		if mc.Serial != "" {
+			panel = append(panel, kv("Serial", mc.Serial))
+		}
 		panel = append(panel,
 			kv("CPU", fmt.Sprintf("%d cores", mc.CPUs)),
 			kv("Memory", humanBytes(roundGiB(mc.MemoryBytes))),

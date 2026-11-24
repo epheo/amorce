@@ -99,6 +99,9 @@ func (m *Model) viewConfirm() screen {
 		lines = append(lines, kv("Kept", strings.Join(plan.Unused, ", ")+", not touched"))
 	}
 	var warns []string
+	if p := m.siteProblem(); p != "" {
+		warns = append(warns, t.S(t.Warn).Render(t.Alert+" ")+t.S(t.Fg).Render(p))
+	}
 	for _, n := range erased {
 		if d, ok := st.Disk(n); ok && d.Holds != "" {
 			warns = append(warns, t.S(t.Warn).Render(t.Alert+" ")+t.S(t.Fg).Render(fmt.Sprintf("%s holds %s; it goes too.", d.Name, d.Holds)))
