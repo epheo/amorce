@@ -126,3 +126,35 @@ func TestKeyboardSearchPutsExactFirst(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+// The installed console keeps the purpose's notes whole and lists the board.
+func TestHomeFits(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {80, 24}} {
+		for _, look := range []Look{LookStyled, LookNormal, LookTrue} {
+			m := New(context.Background(), nil, Options{Look: look, Home: DemoHome})
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			out := ansi.Strip(m.View().Content)
+			lines := strings.Split(out, "\n")
+			if len(lines) > size[1] {
+				t.Errorf("%v %v: %d lines", size, look, len(lines))
+			}
+			for _, l := range lines {
+				if w := lipgloss.Width(l); w > size[0] {
+					t.Errorf("%v %v: line %d wide: %q", size, look, w, l)
+				}
+			}
+			for _, want := range []string{"3A:4F:9C", "E9:27", "Machines in site lab", "correct-horse-staple"} {
+				if !strings.Contains(out, want) {
+					t.Errorf("%v %v: %q missing:\n%s", size, look, want, out)
+				}
+			}
+			m.Update(tea.KeyPressMsg{Code: tea.KeyF3})
+			board := ansi.Strip(m.View().Content)
+			for _, name := range []string{"store-01", "store-05", "not seen"} {
+				if !strings.Contains(board, name) {
+					t.Errorf("%v %v: F3 lacks %q:\n%s", size, look, name, board)
+				}
+			}
+		}
+	}
+}

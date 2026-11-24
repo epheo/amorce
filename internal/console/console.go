@@ -33,6 +33,12 @@ func IsVT(f *os.File) bool {
 // Colormap is the console's 16 colors, three bytes each.
 type Colormap [48]byte
 
+// KernelColormap is the Linux console's own 16 colors.
+var KernelColormap = ColormapOf([16]string{
+	"#000000", "#aa0000", "#00aa00", "#aa5500", "#0000aa", "#aa00aa", "#00aaaa", "#aaaaaa",
+	"#555555", "#ff5555", "#55ff55", "#ffff55", "#5555ff", "#ff55ff", "#55ffff", "#ffffff",
+})
+
 // ColormapOf parses #rrggbb colors.
 func ColormapOf(pal [16]string) Colormap {
 	var c Colormap
@@ -120,6 +126,24 @@ func FontFor(cols, rows int) int {
 		return 32
 	}
 	return 16
+}
+
+// RedirectKernelMessages sends the kernel's messages for the screen to VT
+// vt instead of the one in front, so they never scroll a frame drawn there;
+// serial consoles keep them. f is any VT. The kernel ignores a VT that was
+// never opened, so vt is opened first; it stays allocated after close.
+func RedirectKernelMessages(f *os.File, vt int) error {
+	target, err := os.OpenFile(fmt.Sprintf("/dev/tty%d", vt), os.O_RDWR|unix.O_NOCTTY, 0)
+	if err != nil {
+		return err
+	}
+	target.Close()
+	const tioclSetKmsgRedirect = 11
+	buf := [2]byte{tioclSetKmsgRedirect, byte(vt)}
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, f.Fd(), unix.TIOCLINUX, uintptr(unsafe.Pointer(&buf[0]))); errno != 0 {
+		return errno
+	}
+	return nil
 }
 
 // QuietKernel keeps kernel messages off the consoles while the wizard runs.

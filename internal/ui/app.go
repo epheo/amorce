@@ -21,6 +21,11 @@ type Options struct {
 	Where string
 	// Shell opens a shell on this terminal; nil disables F12.
 	Shell func() tea.ExecCommand
+	// Home makes this the installed console instead of the wizard; it is
+	// called every second for what to show.
+	Home func() HomeInfo
+	// Login starts a login on this terminal, for the installed console.
+	Login func() tea.ExecCommand
 }
 
 // EngineMsg tells the model the engine state changed.
@@ -56,10 +61,16 @@ type Model struct {
 	countdown  int
 	showLog    bool
 	note       string
+	home       HomeInfo
+	homeBoard  bool
 }
 
 func New(ctx context.Context, eng *engine.Engine, opt Options) *Model {
 	m := &Model{eng: eng, ctx: ctx, opt: opt, t: NewTheme(opt.Look), w: 100, h: 30, countdown: -1}
+	if opt.Home != nil {
+		m.home = opt.Home()
+		return m
+	}
 	m.st = eng.Snapshot()
 	m.shown = m.st.Step
 	return m
@@ -83,6 +94,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.frame++
 		m.ticks++
+		if m.opt.Home != nil && m.ticks%10 == 0 {
+			m.home = m.opt.Home()
+			// Kernel messages may land on this console; repaint now and then.
+			if m.ticks%600 == 0 {
+				return m, tea.Batch(tick(), func() tea.Msg { return tea.ClearScreen() })
+			}
+		}
 		if m.ticks%10 == 0 && m.countdown > 0 {
 			m.countdown--
 			if m.countdown == 0 {
@@ -136,6 +154,9 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		m.eng.StopSite()
 		return nil
 	}
+	if m.opt.Home != nil {
+		return m.keyHome(s)
+	}
 	if s == "f12" && m.opt.Shell != nil {
 		return tea.Exec(m.opt.Shell(), func(err error) tea.Msg { return shellDoneMsg{err} })
 	}
@@ -175,6 +196,8 @@ type screen struct {
 	pillColor  color.Color
 	stepNo     int
 	right      string
+	title      string // over the frame; "Installer" when empty
+	bar        string // the status bar's first pill; "SETUP" when empty
 	layers     []*lipgloss.Layer
 	fullscreen bool // the screen draws its own body; no left column or panel
 }
@@ -215,7 +238,10 @@ func (m *Model) render() string {
 	}
 
 	title := "Installer"
-	add(3, 1, t.Gradient(title)+t.S(t.Border).Render(" "+strings.Repeat(t.Slash, l.W-6-len(title))))
+	if sc.title != "" {
+		title = sc.title
+	}
+	add(3, 1, t.Gradient(title)+t.S(t.Border).Render(" "+strings.Repeat(t.Slash, max(0, l.W-6-lipgloss.Width(title)))))
 
 	if !sc.fullscreen {
 		left := sc.left
@@ -270,7 +296,6 @@ func (m *Model) render() string {
 	return out
 }
 
-// squeeze drops blank rows, bottom first, until lines fits n rows.
 // siteProblem is why the site file needs a person on this screen, or "".
 func (m *Model) siteProblem() string {
 	if r := m.st.Site; r != nil && r.Problem != "" && m.st.Step == r.ProblemStep {
@@ -279,6 +304,7 @@ func (m *Model) siteProblem() string {
 	return ""
 }
 
+// squeeze drops blank rows, bottom first, until lines fits n rows.
 func squeeze(lines []string, n int) []string {
 	out := append([]string(nil), lines...)
 	for i := len(out) - 1; i > 0 && len(out) > n; i-- {
@@ -324,7 +350,11 @@ func (m *Model) helpLine(keys [][2]string, width int) string {
 func (m *Model) statusBar(sc screen, width int) string {
 	t := m.t
 	on := lipgloss.NewStyle().Background(t.Bar)
-	left := t.Pill(t.Accent, " SETUP ")
+	bar := "SETUP"
+	if sc.bar != "" {
+		bar = sc.bar
+	}
+	left := t.Pill(t.Accent, " "+bar+" ")
 	if sc.pill != "" {
 		left += t.Pill(sc.pillColor, " "+sc.pill+" ")
 	}
@@ -340,6 +370,9 @@ func (m *Model) statusBar(sc screen, width int) string {
 }
 
 func (m *Model) screen() screen {
+	if m.opt.Home != nil {
+		return m.viewHome()
+	}
 	if m.kb != nil {
 		return m.viewKeyboard()
 	}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Console: this machine, what its purpose says, and its site's machines
+Documentation=https://github.com/epheo/microshift-installer
+# The console takes tty1; logins move behind enter, or to alt+F2.
+Conflicts=getty@tty1.service
+After=systemd-user-sessions.service plymouth-quit-wait.service getty@tty1.service
+
+[Service]
+ExecStart=/usr/bin/installer console
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

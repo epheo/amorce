@@ -27,6 +27,9 @@ func screens(dir string, w, h int) error {
 		if err := walkSite(dir, look, w, h); err != nil {
 			return err
 		}
+		if err := walkHome(dir, look, w, h); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -142,6 +145,17 @@ func walkSite(dir string, look ui.Look, w, h int) error {
 		}
 	}
 	return nil
+}
+
+// walkHome shows the installed console of a first machine, and its board.
+func walkHome(dir string, look ui.Look, w, h int) error {
+	m := ui.New(context.Background(), nil, ui.Options{Look: look, Home: ui.DemoHome})
+	m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("10a-home-%s.ans", look)), []byte(m.View().Content), 0o644); err != nil {
+		return err
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF3})
+	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("10b-home-board-%s.ans", look)), []byte(m.View().Content), 0o644)
 }
 
 func waitFor(eng *engine.Engine, ok func(engine.State) bool) {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net/netip"
 	"path/filepath"
@@ -46,6 +47,10 @@ func (e *Engine) startSite(ctx context.Context) bool {
 			s.Site = &SiteRun{Stopped: true, Problem: err.Error(), ProblemStep: StepHello}
 		})
 		return false
+	}
+	e.update(func(s *State) { s.SiteFile, s.ReportTo, s.SiteNames = b, f.Report, f.Names() })
+	if f.Report != nil {
+		go e.reportLoop(ctx, *f.Report)
 	}
 	st := e.Snapshot()
 	id := site.Identity{Serial: st.Machine.Serial}
@@ -314,14 +319,18 @@ func findDisk(m Machine, want string) (Disk, bool) {
 	return Disk{}, false
 }
 
-// siteFor writes the state's answers as a site file for this one machine:
-// what all machines would share goes in defaults, ready to add more.
+// siteFor is the site file the installed system keeps: the media's, as is,
+// or one written from this machine's answers, shared settings in defaults,
+// naming this machine as the first one that the others report to.
 func siteFor(s State) ([]byte, error) {
+	if s.SiteFile != nil {
+		return s.SiteFile, nil
+	}
 	p, _ := s.Purpose()
 	c := s.Net.Config
 	f := &site.File{}
-	if s.Site != nil {
-		f.Site = s.Site.Site
+	if c.Address.IsValid() {
+		f.Report = &site.Report{Address: c.Address.Addr().String(), Token: rand.Text()}
 	}
 	data := "none"
 	if len(s.Plan.Pools) > 0 {

@@ -17,8 +17,36 @@ const FileName = "site.yaml"
 
 type File struct {
 	Site     string    `yaml:"site,omitempty"`
+	Report   *Report   `yaml:"report,omitempty"`
 	Defaults Answers   `yaml:"defaults,omitempty"`
 	Machines []Machine `yaml:"machines"`
+}
+
+// Report names the first machine, which lists every install of the site.
+type Report struct {
+	// Address is the first machine's address, with or without a port.
+	Address string `yaml:"address"`
+	// Token lets installers post reports; it reads nothing back.
+	Token string `yaml:"token"`
+}
+
+// HostPort is Address with the report port added when it has none.
+func (r Report) HostPort(port int) string {
+	if _, _, err := net.SplitHostPort(r.Address); err == nil {
+		return r.Address
+	}
+	return net.JoinHostPort(r.Address, fmt.Sprint(port))
+}
+
+// Names lists the machines the file names, for the first machine's board.
+func (f *File) Names() []string {
+	var out []string
+	for _, m := range f.Machines {
+		if m.Name != "" {
+			out = append(out, m.Name)
+		}
+	}
+	return out
 }
 
 type Machine struct {
@@ -70,6 +98,9 @@ func Parse(b []byte) (*File, error) {
 	dec.KnownFields(true)
 	if err := dec.Decode(&f); err != nil {
 		return nil, fmt.Errorf("site file: %w", err)
+	}
+	if r := f.Report; r != nil && (r.Address == "" || r.Token == "") {
+		return nil, fmt.Errorf("site file: report needs an address and a token")
 	}
 	for i, m := range f.Machines {
 		if m.Match.Serial == "" && m.Match.MAC == "" {

@@ -64,13 +64,22 @@ func run(args []string) error {
 	eng := engine.New(sys)
 	eng.Start(ctx)
 
+	wizard := func(opt ui.Options) *ui.Model { return ui.New(ctx, eng, opt) }
+	serve(ctx, ttys, *lookName, string(cmdline), logf, wizard, eng.Subscribe)
+	return nil
+}
+
+// serve runs one program per terminal until the process ends; changes, if
+// set, says when to redraw.
+func serve(ctx context.Context, ttys []string, lookName, cmdline string, logf func(string),
+	model func(ui.Options) *ui.Model, changes func() (<-chan struct{}, func())) {
 	var wg sync.WaitGroup
 	for _, dev := range ttys {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for {
-				if err := frontend(ctx, eng, dev, *lookName, string(cmdline), logf); err != nil {
+				if err := frontend(ctx, dev, lookName, cmdline, logf, model, changes); err != nil {
 					logf(fmt.Sprintf("%s: %v", dev, err))
 				}
 				time.Sleep(time.Second)
@@ -78,7 +87,6 @@ func run(args []string) error {
 		}()
 	}
 	wg.Wait()
-	return nil
 }
 
 // kernelConsoles maps console= arguments to devices; tty0 is the screen.
@@ -113,7 +121,8 @@ func argValue(cmdline, key string) string {
 // glyphs are the symbols the styled look draws; our font must have them all.
 var glyphs = []rune("✓×●•⣾⣽⣻⢿⡿⣟⣯⣷━┃│─╭╮╰╯├└█░")
 
-func frontend(ctx context.Context, eng *engine.Engine, dev, lookName, cmdline string, logf func(string)) error {
+func frontend(ctx context.Context, dev, lookName, cmdline string, logf func(string),
+	model func(ui.Options) *ui.Model, changes func() (<-chan struct{}, func())) error {
 	f, err := os.OpenFile(dev, os.O_RDWR|syscall.O_NOCTTY, 0)
 	if err != nil {
 		return err
@@ -170,20 +179,25 @@ func frontend(ctx context.Context, eng *engine.Engine, dev, lookName, cmdline st
 	opts = append(opts, tea.WithEnvironment([]string{term}))
 	logf(fmt.Sprintf("%s: %s look", dev, look))
 
-	opt := ui.Options{Look: look, Where: where, Shell: func() tea.ExecCommand {
-		c := exec.Command("/bin/bash", "-l")
-		c.Env = append(os.Environ(), "TERM=linux", "PS1=[installer \\W]# ")
-		c.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
-		return &ui.Shell{Cmd: c, Before: before, After: after}
-	}}
-	p := tea.NewProgram(ui.New(ctx, eng, opt), opts...)
-	ch, stop := eng.Subscribe()
-	defer stop()
-	go func() {
-		for range ch {
-			p.Send(ui.EngineMsg{})
+	onTTY := func(name string, args ...string) func() tea.ExecCommand {
+		return func() tea.ExecCommand {
+			c := exec.Command(name, args...)
+			c.Env = append(os.Environ(), "TERM=linux", "PS1=[installer \\W]# ")
+			c.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
+			return &ui.Shell{Cmd: c, Before: before, After: after}
 		}
-	}()
+	}
+	opt := ui.Options{Look: look, Where: where, Shell: onTTY("/bin/bash", "-l"), Login: onTTY("/usr/bin/login")}
+	p := tea.NewProgram(model(opt), opts...)
+	if changes != nil {
+		ch, stop := changes()
+		defer stop()
+		go func() {
+			for range ch {
+				p.Send(ui.EngineMsg{})
+			}
+		}()
+	}
 	_, err = p.Run()
 	return err
 }
@@ -193,6 +207,11 @@ func frontend(ctx context.Context, eng *engine.Engine, dev, lookName, cmdline st
 // colors so a shell can have them back.
 func styleVT(f *os.File, dev, lookName string, logf func(string)) (console.Colormap, bool) {
 	stock, err := console.GetColormap(f)
+	// A console restarted after a crash finds our own colors still set.
+	if stock == console.ColormapOf(ui.Palette) {
+		stock = console.KernelColormap
+		console.SetColormap(f, stock)
+	}
 	if lookName == "normal" || err != nil {
 		return stock, false
 	}

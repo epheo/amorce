@@ -1,7 +1,7 @@
 # microshift-installer
 
 Boot media and console wizard that install any image built FROM ghcr.io/epheo/microshift.
-Status: in VMs, attended installs on styled and normal consoles, and unattended installs from a site file.
+Status: in VMs, attended installs on styled and normal consoles, unattended installs from a site file, and every install reporting to the first machine's console.
 Screen mockups: the "Installer TUI UX" canvas.
 
 ## Use
@@ -131,14 +131,46 @@ Planned:
 
 - Join: pick a discovered cluster or type its address; compare six words with its console.
 
-## Reporting (planned)
+## Reporting
 
-- Every installer reports to the first machine: step, progress, failure, and what it waits for.
-- Address and token come from the site file or the Join screen.
-- The first machine's console lists every machine the site file names, seen or not (F3).
-- A machine that needs a person says exactly what to do, MOK password included.
+- The site file's `report: {address, token}` names the first machine.
+- An attended install with no site file names itself, with a new token, in the site file it keeps; machines installed from that file report to it.
+- Every installer reports: waiting (and why: a screen a person is on, a site answer that failed), installing (step, progress), failed (the error), installed.
+- The installed console then reports running, with its address, every 10 minutes.
+- The first machine's console lists every machine the site file names, seen or not; F3 shows the whole list.
 - Reports go one way: the first machine never sends commands to installers.
-- Reports never block an install; a machine that cannot reach the first one installs anyway and reports later.
+- Reports never block an install; a send that fails is retried at the next change.
+- HTTP on port 9190 with the token; reports hold names, addresses and progress, nothing secret.
+- Planned: the MOK password on the board, for a machine that needs a person; Join.
+
+## Installed console
+
+The distro ships this binary; `installer console` takes tty1 of every installed machine.
+
+- This machine: address, health (systemd's), serial number, the image updates come from.
+- What the purpose tells its admins: every `issue.d/*.issue` file, wrapped, never cut; stornas puts its web address, fingerprint and first password there.
+- On the first machine, the board of the site's machines.
+- Enter starts a login on tty1; alt+F2 has a plain one; the serial console keeps its getty.
+- Kernel messages for the screen go to tty12 (alt+F12, as on ESXi), so they never scroll the console; serial consoles still get them.
+- It never waits on a command: systemd is asked every 2 seconds in the background, bootc once per boot.
+- Styled when the font loads, normal otherwise, like the wizard.
+
+Distro, in its Containerfile:
+
+```
+FROM ghcr.io/epheo/microshift-installer:<tag> AS installer
+...
+COPY --from=installer /usr/bin/installer /usr/bin/installer
+COPY --from=installer /usr/share/microshift-installer /usr/share/microshift-installer
+RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.service /usr/lib/systemd/system/ && \
+    install -m 644 /usr/share/microshift-installer/dist/microshift-installer.xml /usr/lib/firewalld/services/ && \
+    firewall-offline-cmd --zone=public --add-service=microshift-installer && \
+    systemctl enable installer-console.service && \
+    systemctl mask getty@tty1.service
+```
+
+- `test/vm/console.Containerfile` adds the same lines to any OS image, for tests before the distro has them.
+- Why the distro: one binary, updated by bootc with everything else; no repo-specific copy to drift.
 
 ## Network
 
@@ -203,7 +235,8 @@ Styled console:
 
 - The plain Linux console; no graphics stack.
 - The wizard loads its font, sets the 16 colors (PIO_CMAP), and reads both back (GIO_UNIMAP, GIO_CMAP); any miss means the normal look.
-- The F12 shell gets the stock colors back, and the wizard its own after.
+- The F12 shell and the console's login get the stock colors back, and the screen its own after.
+- A console restarted after a crash finds its own colors still set, and takes the kernel's as stock.
 - The console only draws backgrounds from slots 0 to 7, so those hold every background color.
 - The console draws bright colors (SGR 90 to 97) as bold normal ones, and bold sticks; every normal color is sent with "normal intensity" (SGR 22).
 - No bold: the console turns bold into another color slot.
@@ -281,6 +314,7 @@ machines:
 - `SB=on test/vm/e2e.sh VM PORT`: the same with Secure Boot enforced; the warnings must show.
 - `test/vm/edge.sh VM PORT`: a PERC RAID volume and a network with no DHCP and no gateway.
 - `test/vm/site.sh VM PORT`: site media name the VM by serial; no key is pressed until the install is done; the installed system keeps the answers.
+- `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console. Needs a payload built from `console.Containerfile`.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
 
@@ -299,15 +333,15 @@ Designed during implementation, not in the mockups:
 ## Phases
 
 1. Single machine, attended, one system disk; LLDP and gateway probe; styled and normal console; serial e2e. Done, in VMs.
-2. Site file and unattended installs: done, in VMs. Reporting to the first machine: next.
+2. Site file, unattended installs, reporting to the first machine's installed console: done, in VMs.
 3. Join: join service on the first machine, discovery, words.
 4. Secure Boot enrollment, after distro module signing.
-5. Installed console screen; SSH frontend through Wish.
+5. Installed console: the screen and board are done; next, changing settings from it (network, like ESXi's F2), and an SSH frontend through Wish.
 
 ## Dependencies
 
 - stornas: the install-plan branch, and the labels in its image.
-- distro: labels for the MicroShift purpose; DRBD module signing (phase 4).
+- distro: the installed console lines above, once this repo publishes its image; labels for the MicroShift purpose (safe now: updates follow the pull, not inherited labels); DRBD module signing (phase 4).
 - da2: labels; registry credentials for updates after an offline install.
 
 ## Open questions

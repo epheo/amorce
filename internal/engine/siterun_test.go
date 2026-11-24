@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"context"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/epheo/microshift-installer/internal/demo"
 	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 func TestMain(m *testing.M) {
@@ -87,4 +90,31 @@ func TestSiteNamesOtherMachines(t *testing.T) {
 	if st.Step != engine.StepHello || !st.Site.Stopped || !strings.Contains(st.Site.Problem, "does not name") {
 		t.Fatalf("step %d: %+v", st.Step, st.Site)
 	}
+}
+
+func TestSiteReportsToFirstMachine(t *testing.T) {
+	store := report.Open("")
+	srv := httptest.NewServer(report.Handler(store, "tok"))
+	defer srv.Close()
+	file := strings.Replace(header, "site: lab\n", "site: lab\nreport: {address: \""+
+		strings.TrimPrefix(srv.URL, "http://")+"\", token: tok}\n", 1) +
+		"    name: k8s-01\n    purpose: kubernetes\n    address: 10.20.120.11/24\n" +
+		"  - match: {serial: OTHER}\n    name: k8s-02\n"
+	if _, err := site.Parse([]byte(file)); err != nil {
+		t.Fatal(err)
+	}
+	run(t, file, func(s engine.State) bool { return s.Step == engine.StepReady })
+	deadline := time.Now().Add(10 * time.Second)
+	var board []report.Report
+	for time.Now().Before(deadline) {
+		board = store.Board()
+		if len(board) == 2 && board[0].Name == "k8s-01" && board[0].State == report.Installed {
+			if board[1].Name != "k8s-02" || board[1].State != "" {
+				t.Fatalf("the unseen machine: %+v", board[1])
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("board: %+v", board)
 }

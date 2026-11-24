@@ -18,10 +18,11 @@ import (
 
 const usage = `usage:
   installer run [--tty DEV]...      the wizard on the given consoles (install media)
-  installer demo [--look L]         the wizard on a fake machine, in this terminal
+  installer demo [--look L] [--home] the wizard on a fake machine, or its installed console
   installer screens DIR [W H]       render every demo screen to DIR
   installer iso [flags]             write install media (see installer iso -h)
   installer font DIR                write the console fonts
+  installer console [--tty DEV]...  the installed system's console (default /dev/tty1)
 `
 
 func main() {
@@ -48,6 +49,8 @@ func main() {
 		err = screens(os.Args[2], w, h)
 	case "iso":
 		err = isoCmd(os.Args[2:])
+	case "console":
+		err = consoleCmd(os.Args[2:])
 	case "font":
 		if len(os.Args) < 3 {
 			err = fmt.Errorf("font needs a directory")
@@ -79,21 +82,26 @@ func parseLook(s string) (ui.Look, error) {
 func demoCmd(args []string) error {
 	fs := flag.NewFlagSet("demo", flag.ExitOnError)
 	lookName := fs.String("look", "true", "styled, normal or true")
+	home := fs.Bool("home", false, "the installed console of a first machine, instead of the wizard")
 	fs.Parse(args)
 	look, err := parseLook(*lookName)
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
+	popts := []tea.ProgramOption{}
+	if look != ui.LookTrue {
+		popts = append(popts, tea.WithColorProfile(colorprofile.ANSI))
+	}
+	if *home {
+		_, err := tea.NewProgram(ui.New(ctx, nil, ui.Options{Look: look, Home: ui.DemoHome}), popts...).Run()
+		return err
+	}
 	eng := engine.New(&demo.System{Speed: 4})
 	eng.Start(ctx)
 	opt := ui.Options{Look: look, Where: "demo", Shell: func() tea.ExecCommand {
 		return &ui.Shell{Cmd: exec.Command(os.Getenv("SHELL"))}
 	}}
-	popts := []tea.ProgramOption{}
-	if look != ui.LookTrue {
-		popts = append(popts, tea.WithColorProfile(colorprofile.ANSI))
-	}
 	p := tea.NewProgram(ui.New(ctx, eng, opt), popts...)
 	ch, stop := eng.Subscribe()
 	defer stop()

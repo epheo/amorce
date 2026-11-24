@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/epheo/microshift-installer/internal/site"
 )
 
 // State is a snapshot; frontends render it and never mutate it.
@@ -32,6 +34,12 @@ type State struct {
 
 	// Site is set when a site file on the media names this machine.
 	Site *SiteRun
+	// SiteFile is the media's site file, kept as is on the installed system.
+	SiteFile []byte
+	// ReportTo is the first machine, from the site file; nil reports nowhere.
+	ReportTo *site.Report
+	// SiteNames are the machines the site file names.
+	SiteNames []string
 	// SSHKeys come from the site file; the wizard has no screen for them.
 	SSHKeys []string
 

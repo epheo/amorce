@@ -13,6 +13,8 @@ RUN dnf -y install dracut-live smartmontools squashfs-tools xorriso mtools \
  && dnf clean all && rm -rf /var/cache/dnf /var/log/dnf* /var/lib/dnf
 COPY --from=build /installer /usr/bin/installer
 COPY live/rootfs/ /
+# What OS images copy in for the installed console; see README, Distro.
+COPY dist/ /usr/share/microshift-installer/dist/
 RUN installer font /usr/share/microshift-installer \
  && systemctl mask bootc-fetch-apply-updates.timer rpm-ostree-countme.timer \
       bootc-publish-rhsm-facts.service NetworkManager-wait-online.service \

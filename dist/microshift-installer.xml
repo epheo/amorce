@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<service>
+  <short>Install reports</short>
+  <description>Installers of the same site report their progress to the first machine's console.</description>
+  <port protocol="tcp" port="9190"/>
+</service>
