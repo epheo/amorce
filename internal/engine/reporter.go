@@ -76,6 +76,9 @@ func reportOf(s State) report.Report {
 		r.State, r.Detail = report.Failed, s.Install.Err
 	case s.Step == StepReady:
 		r.State = report.Installed
+		if pw := s.Install.MOKPassword; pw != "" {
+			r.Detail = "at its next start, MokManager asks for " + pw
+		}
 	case s.Step == StepInstalling:
 		r.State, r.Progress = report.Installing, s.Install.Progress
 		for _, st := range s.Install.Steps {

@@ -227,6 +227,9 @@ func (m *Model) board(h HomeInfo, rows int) []string {
 			sym, st, state, detail = t.Cur, t.S(t.Accent), "joining", r.Detail
 		case report.Installed:
 			sym, st, state, detail = t.Ok, t.S(t.Good), "installed", "restarting"
+			if r.Detail != "" {
+				sym, st, detail = t.Alert, t.S(t.Warn), r.Detail
+			}
 		case report.Installing:
 			sym, st, state = t.Cur, t.S(t.Accent), "installing"
 			detail = fmt.Sprintf("%s  %d%%", r.Step, int(r.Progress*100))

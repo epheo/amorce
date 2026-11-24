@@ -138,7 +138,6 @@ Unattended, when a site file names the machine:
 - Reports never block an install; a send that fails is retried at the next change.
 - TLS on port 9190; the token never crosses the network (see Trust).
 - `installer machines` prints the board as JSON, on any machine holding the site file.
-- Planned: the MOK password on the board, for a machine that needs a person.
 
 ## Join
 
@@ -231,12 +230,14 @@ Plan file, `/etc/microshift-installer/data-disks.json`:
 
 ## Secure Boot
 
-- The DRBD module is unsigned today; Secure Boot refuses it.
-- Plan: the distro signs the module in CI with a project key; the public cert ships in the image.
-- When the image ships `/usr/lib/microshift-installer/mok.der` and Secure Boot is on, the installer queues it with `mokutil --import` and shows the one-time password on Ready.
-- At the next boot, MokManager asks for that password once.
+- The distro builds the DRBD module; Secure Boot refuses it unless it is signed by a key the kernel trusts.
+- The distro signs it in CI with the project key, and ships the certificate as `/usr/lib/microshift-installer/mok.der` (branch kmod/sign-drbd, waiting for the key).
+- When the image ships that certificate and Secure Boot is on, the installer queues it with `mokutil --import` and shows the one-time password on Ready.
+- An unattended install puts that password on the first machine's board: a person answers MokManager once, at the machine's screen.
+- The kernel trusts an enrolled key for modules only in its `.machine` keyring: a CA certificate that signs certificates and nothing else.
 - An image labeled `secure-boot=off` gets a warning on Purpose and Confirm, and a firmware step on Ready; no key is queued for it.
 - It still installs: stornas boots and serves its UI with Secure Boot on (VM e2e); replicated volumes need it off.
+- stornas drops its `secure-boot=off` label once it builds on a signed distro image.
 
 ## Display
 
@@ -340,6 +341,7 @@ machines:
 - `test/vm/site.sh VM PORT`: site media name the VM by serial; no key is pressed until the install is done; the installed system keeps the answers.
 - `test/vm/media.sh BASE`: the installer ISO, and a payload of the OS image BASE with the installed console added as the distro adds it (`console.Containerfile`).
 - `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console.
+- `KMOD_KEY=key.pem PAYLOAD=msi-signed.iso test/vm/media.sh BASE`, then `PAYLOAD=msi-signed.iso test/vm/mok.sh VM PORT`: an image with DRBD signed by a test key, the way the distro signs it (`signed.Containerfile`); Secure Boot on; an unattended install queues the key; the test answers MokManager over the serial console; DRBD must load under lockdown.
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
@@ -361,7 +363,7 @@ Designed during implementation, not in the mockups:
 1. Single machine, attended, one system disk; LLDP and gateway probe; styled and normal console; serial e2e. Done, in VMs.
 2. Site file, unattended installs, reporting to the first machine's installed console: done, in VMs.
 3. Join: workers from the site file and by words, discovery: done, in VMs.
-4. Secure Boot enrollment, after distro module signing.
+4. Secure Boot enrollment: done, in VMs with a test key; the distro's signing waits for the project key.
 5. Installed console: the screen and board are done; next, changing settings from it (network, like ESXi's F2), and an SSH frontend through Wish.
 
 ## Dependencies
@@ -369,13 +371,13 @@ Designed during implementation, not in the mockups:
 - Join words: the EFF short word list 2.0 (Electronic Frontier Foundation, CC BY 3.0 US).
 
 - stornas: the install-plan branch, and the labels in its image.
-- distro: the installed console lines above, once this repo publishes its image; labels for the MicroShift purpose (safe now: updates follow the pull, not inherited labels); DRBD module signing (phase 4).
+- distro: the installed console lines above, once this repo publishes its image; labels for the MicroShift purpose (safe now: updates follow the pull, not inherited labels); the KMOD_SIGNING_KEY secret, for DRBD module signing.
 - da2: labels; registry credentials for updates after an offline install.
 
 ## Open questions
 
 - Bonds: offered when two links reach different switches, or always asked?
-- Unattended installs with Secure Boot on: MOK needs a person per machine; check BMC (Redfish) key enrollment, and whether the kernel trusts those keys for modules.
+- Unattended installs with Secure Boot on: MOK needs a person per machine; check BMC (Redfish) enrollment into db, which the kernel puts in .platform, not .machine.
 - A 16x32 font drawn for that size rather than doubled.
 - The site token never expires; rotating it from the first machine's console is planned with settings (phase 5).
 - Repo name.

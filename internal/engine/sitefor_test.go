@@ -66,3 +66,11 @@ func TestSiteForAddsThisMachine(t *testing.T) {
 		t.Fatalf("lost the first machine:\n%s", b)
 	}
 }
+
+// An install that queued a key says on the board what MokManager asks for.
+func TestReportCarriesMOKPassword(t *testing.T) {
+	r := reportOf(State{Step: StepReady, Hostname: "srv-02", Install: InstallState{MOKPassword: "4831 7720"}})
+	if r.State != "installed" || r.Detail != "at its next start, MokManager asks for 4831 7720" {
+		t.Fatalf("%+v", r)
+	}
+}
