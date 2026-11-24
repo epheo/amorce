@@ -46,6 +46,9 @@ type Disk struct {
 	// Health is empty when SMART has nothing to say.
 	Health  string
 	Failing bool
+	// Controller names the hardware RAID controller when the disk is one of
+	// its volumes; the drives behind it are out of sight.
+	Controller string
 }
 
 type NIC struct {

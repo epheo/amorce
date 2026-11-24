@@ -106,16 +106,17 @@ func (m *Model) netReport() ([]string, []netChoice) {
 				{label: "Keep these settings anyway", act: actKeepAnyway}}
 	}
 	lines := []string{good("The network works")}
-	detail := "The gateway answers"
+	if r.Gateway == engine.CheckOK {
+		lines = append(lines, muted("The gateway answers."))
+	} else {
+		lines = append(lines, muted("No gateway: only "+c.Address.Masked().String()+" is in reach."))
+	}
 	switch r.DNS {
 	case engine.CheckOK:
-		detail += ", and so does DNS."
+		lines = append(lines, muted("DNS answers."))
 	case engine.CheckFailed:
-		detail += "; DNS does not."
-	default:
-		detail += "."
+		lines = append(lines, muted("DNS does not answer."))
 	}
-	lines = append(lines, muted(detail))
 	if c.Mode == engine.NetDHCP {
 		return lines, []netChoice{
 			{label: "Keep " + c.Address.Addr().String() + ", as a fixed address", act: actKeepFixed},
@@ -428,14 +429,16 @@ func (f *netForm) config() (engine.NetConfig, string) {
 		return c, "Address looks like 10.20.120.11/24."
 	}
 	c.Address = p
-	g, err := netip.ParseAddr(strings.TrimSpace(f.fields[2].value))
-	if err != nil {
-		return c, "Gateway looks like 10.20.120.1."
+	if v := strings.TrimSpace(f.fields[2].value); v != "" {
+		g, err := netip.ParseAddr(v)
+		if err != nil {
+			return c, "Gateway looks like 10.20.120.1, or empty."
+		}
+		if !p.Masked().Contains(g) {
+			return c, "The gateway is outside " + p.Masked().String() + "."
+		}
+		c.Gateway = g
 	}
-	if !p.Masked().Contains(g) {
-		return c, "The gateway is outside " + p.Masked().String() + "."
-	}
-	c.Gateway = g
 	for _, s := range strings.FieldsFunc(f.fields[3].value, func(r rune) bool { return r == ',' || r == ' ' }) {
 		d, err := netip.ParseAddr(s)
 		if err != nil {

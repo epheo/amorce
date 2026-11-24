@@ -42,8 +42,13 @@ name        Storage
 summary     File shares, iSCSI disks, replication
 includes    Web UI on port 30080;SMB and NFS shares;...   (';' separated)
 data-disks  pairs | none
-target      ghcr.io/epheo/stornas-os:latest                (where updates come from)
+target      ghcr.io/epheo/stornas-os:latest                (updates, for local builds)
+secure-boot off                                            (cannot run with Secure Boot on)
 ```
+
+- Updates come from where `iso` pulled the image; `target` names that place only for local builds and digest pins.
+- Why: labels are inherited, so an image built FROM stornas-os would otherwise update back to stornas-os.
+- `iso` prints each image's name and update source.
 
 ## Non-goals for v1
 
@@ -166,7 +171,8 @@ Plan file, `/etc/microshift-installer/data-disks.json`:
 - Plan: the distro signs the module in CI with a project key; the public cert ships in the image.
 - When the image ships `/usr/lib/microshift-installer/mok.der` and Secure Boot is on, the installer queues it with `mokutil --import` and shows the one-time password on Ready.
 - At the next boot, MokManager asks for that password once.
-- To do: Hello warns when Secure Boot is on and the purpose needs unsigned modules.
+- An image labeled `secure-boot=off` gets a warning on Purpose and Confirm, and a firmware step on Ready; no key is queued for it.
+- It still installs: stornas boots and serves its UI with Secure Boot on (VM e2e); replicated volumes need it off.
 
 ## Display
 
@@ -253,6 +259,8 @@ machines:
 - `installer screens DIR`: every demo screen as terminal output, to compare with the mockups.
 - `test/render`: turns that output into PNGs through a terminal emulator.
 - `test/vm/e2e.sh VM PORT`: a fresh libvirt VM boots the ISO; the wizard is driven over the serial console; the installed system must serve its web UI.
+- `SB=on test/vm/e2e.sh VM PORT`: the same with Secure Boot enforced; the warnings must show.
+- `test/vm/edge.sh VM PORT`: a PERC RAID volume and a network with no DHCP and no gateway.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
 
@@ -260,10 +268,11 @@ machines:
 
 Designed during implementation, not in the mockups:
 
-- Hardware RAID controllers that show one virtual disk.
+- Hardware RAID volumes (handled): known controller models are marked RAID; a purpose that mirrors drives itself says to set the controller to HBA mode.
 - Odd or mixed data disk counts (handled: odd ones stay unused).
 - Old md, LVM, or filesystem signatures on chosen disks (handled: shown, then wiped).
-- No gateway to test against.
+- No DHCP and no gateway (handled): the gateway is optional; the result says only the subnet is in reach. stornas serves its UI without a default route.
+- Secure Boot on for an image that needs it off (handled): warned on Purpose, Confirm and Ready; installs anyway.
 - Bonds that need LACP before any link comes up.
 - No LLDP and no tagged traffic (handled: the gateway probe still tries untagged).
 

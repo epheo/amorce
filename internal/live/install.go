@@ -130,6 +130,9 @@ func (s *System) Install(ctx context.Context, req engine.InstallRequest, ev func
 		if !req.Machine.SecureBoot {
 			return "Secure Boot is off", nil
 		}
+		if req.Purpose.NeedsSecureBootOff {
+			return req.Purpose.Name + " needs Secure Boot off", nil
+		}
 		cert := filepath.Join(deploy, "usr/lib/microshift-installer/mok.der")
 		if _, err := os.Stat(cert); err != nil {
 			return "the image needs no key", nil

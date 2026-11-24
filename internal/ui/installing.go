@@ -172,6 +172,12 @@ func (m *Model) viewReady() screen {
 	p, _ := st.Purpose()
 	lines := []string{t.B(t.Good).Render(t.Ok + " " + st.Hostname + " is installed"), "", t.B(t.Title).Render("At the next start")}
 	n := 1
+	if m.needsSecureBootOff(p) {
+		lines = append(lines,
+			t.S(t.Fg).Render(fmt.Sprintf("%d  Open the firmware setup and turn off Secure Boot.", n)),
+			t.S(t.Muted).Render("   "+p.Name+" needs it off for now."), "")
+		n++
+	}
 	if st.Install.MOKPassword != "" {
 		lines = append(lines,
 			t.S(t.Fg).Render(fmt.Sprintf("%d  A blue screen asks you to trust our signing key.", n)),

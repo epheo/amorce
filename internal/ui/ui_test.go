@@ -18,7 +18,8 @@ import (
 func TestScreensFit(t *testing.T) {
 	for _, size := range [][2]int{{100, 30}, {80, 24}} {
 		for _, look := range []Look{LookStyled, LookNormal, LookTrue} {
-			eng := engine.New(&demo.System{Speed: 1000})
+			raid := look == LookNormal
+			eng := engine.New(&demo.System{Speed: 1000, RAID: raid})
 			eng.Start(context.Background())
 			for i := 0; i < 200 && !eng.Snapshot().Discovered; i++ {
 				time.Sleep(10 * time.Millisecond)
@@ -32,6 +33,9 @@ func TestScreensFit(t *testing.T) {
 				m.Update(EngineMsg{})
 				out := m.View().Content
 				lines := strings.Split(out, "\n")
+				if strings.Contains(ansi.Strip(out), "…") {
+					t.Errorf("%v %v step %d: a line was cut short", size, look, step)
+				}
 				if len(lines) > size[1] {
 					t.Errorf("%v %v step %d: %d lines", size, look, step, len(lines))
 				}

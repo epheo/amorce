@@ -10,6 +10,9 @@ import (
 )
 
 func diskKind(d engine.Disk) string {
+	if d.Controller != "" {
+		return "RAID"
+	}
 	if d.SSD {
 		return "SSD"
 	}
@@ -31,7 +34,7 @@ func (m *Model) diskRow(prefix string, d engine.Disk) string {
 		note = t.S(t.Warn).Render(d.Health)
 	}
 	if note != "" {
-		return row + t.S(t.Muted).Width(10).Render(size) + note
+		return row + t.S(t.Muted).Width(12).Render(size) + note
 	}
 	return row + t.S(t.Muted).Render(size)
 }
@@ -140,6 +143,7 @@ func (m *Model) viewDisks() screen {
 		left = append(left, t.S(t.Bad).Render(t.Fail+" ")+t.S(t.Fg).Render("No disk can hold the system: 32 GB is the minimum."))
 	}
 	left = append(left, m.planTree(min(l.leftW, 56))...)
+	left = append(left, m.raidWarning()...)
 	focus := len(left)
 	left = append(left,
 		t.B(t.Title).Render("Use this layout?"),
@@ -160,6 +164,37 @@ func (m *Model) viewDisks() screen {
 		left: left, focusFrom: focus, focusTo: len(left) - 1, panel: panel,
 		help: [][2]string{{"up/down", "choose"}, {"enter", "continue"}, {"esc", "back"}},
 		pill: "Disks", pillColor: t.Border, stepNo: 4, right: m.statusRight(),
+	}
+}
+
+// raidWarning says when a purpose that mirrors drives itself only sees a
+// RAID controller's volumes, and how to show it the drives.
+func (m *Model) raidWarning() []string {
+	t := m.t
+	p, _ := m.st.Purpose()
+	if p.DataDisks != "pairs" {
+		return nil
+	}
+	var names []string
+	ctl := ""
+	for _, d := range m.st.Machine.Disks {
+		if d.Controller != "" {
+			names = append(names, d.Name)
+			ctl = d.Controller
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	what := names[0] + " is a volume"
+	if len(names) > 1 {
+		what = strings.Join(names, ", ") + " are volumes"
+	}
+	return []string{
+		t.S(t.Warn).Render(t.Alert+" ") + t.S(t.Fg).Render(what+" of the "+ctl+" controller."),
+		t.S(t.Muted).Render("  " + p.Name + " mirrors drives itself; it cannot see them."),
+		t.S(t.Muted).Render("  Set the controller to HBA mode, then start again."),
+		"",
 	}
 }
 

@@ -1,6 +1,7 @@
 #!/bin/bash
 # e2e.sh VM PORT: installs the Storage purpose through the wizard on a fresh
 # VM, over its serial console, then checks the installed system serves its UI.
+# SB=on boots with Secure Boot enforced and expects the wizard to say so.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
@@ -16,7 +17,7 @@ step() { echo "== $*"; }
 step "fresh VM"
 kill "$(cat "$STATE/$vm/bridge.pid" 2>/dev/null)" 2>/dev/null || true
 "$v" destroy "$vm"
-"$v" create "$vm" "$port"
+"$v" create "$vm" "$port" "${SB:-off}"
 mkdir -p "$STATE/$vm" && : > "$log" && rm -f "$STATE/$vm/screen.txt"
 "$v" bridge "$vm" "$port" "${COLS:-100}" "${ROWS:-30}"
 
@@ -30,6 +31,7 @@ wait_for "Keep .*as a fixed address|Continue with these settings" 60
 "$v" key "$vm" enter
 step "purpose"
 wait_for "What will this machine do" 30
+[ "${SB:-off}" = on ] && wait_for "Secure Boot is on; Storage needs it off" 5
 "$v" key "$vm" enter
 step "disks"
 wait_for "Use this layout" 30
@@ -46,6 +48,7 @@ wait_for "Press enter to start" 10
 step "installing"
 wait_for "is installed|The install stopped" 900
 grep -q "is installed" "$STATE/$vm/screen.txt" || { screen; exit 1; }
+[ "${SB:-off}" = on ] && wait_for "turn off Secure Boot" 5
 step "installed system"
 "$v" key "$vm" enter
 for _ in $(seq 1 600); do

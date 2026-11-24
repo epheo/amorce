@@ -14,6 +14,8 @@ import (
 type System struct {
 	// Speed scales the fake install; 1 takes about a minute.
 	Speed float64
+	// RAID hides the hard disks behind one hardware RAID volume.
+	RAID bool
 }
 
 const tb = 1000 * 1000 * 1000 * 1000
@@ -23,7 +25,7 @@ func (s *System) Discover(ctx context.Context) (engine.Machine, error) {
 	sw := func(name string) *engine.Neighbor {
 		return &engine.Neighbor{Switch: name, Port: "port 12", VLAN: 110, Seen: time.Now()}
 	}
-	return engine.Machine{
+	m := engine.Machine{
 		CPUs: 16, MemoryBytes: 64 << 30, UEFI: true, SecureBoot: true,
 		Disks: []engine.Disk{
 			{Name: "nvme0n1", Path: "/dev/disk/by-id/nvme-SSD0001", Size: 960e9, SSD: true},
@@ -38,7 +40,12 @@ func (s *System) Discover(ctx context.Context) (engine.Machine, error) {
 			{Name: "eno2", MAC: "3c:ec:ef:00:00:02", Carrier: true, SpeedMbps: 25000, Neighbor: sw("tor-b")},
 			{Name: "eno3", MAC: "3c:ec:ef:00:00:03"},
 		},
-	}, nil
+	}
+	if s.RAID {
+		m.Disks = append(m.Disks[:2:2], engine.Disk{Name: "sda", Path: "/dev/disk/by-id/wwn-PERC0001",
+			Model: "PERC H740P Mini", Size: 24 * tb, Controller: "PERC H740P Mini"})
+	}
+	return m, nil
 }
 
 func (s *System) Purposes(ctx context.Context) ([]engine.Purpose, error) {
@@ -47,7 +54,7 @@ func (s *System) Purposes(ctx context.Context) ([]engine.Purpose, error) {
 			Includes: []string{"MicroShift", "Replicated volumes", "Gateway API"}, DataDisks: "none"},
 		{ID: "storage", Name: "Storage", Summary: "File shares, iSCSI disks, replication",
 			Includes:  []string{"Web UI on port 30080", "SMB and NFS shares", "iSCSI disks", "Snapshots", "Replication, 3+ machines"},
-			DataDisks: "pairs"},
+			DataDisks: "pairs", NeedsSecureBootOff: true},
 		{ID: "virtualization", Name: "Virtualization", Summary: "Virtual machines, identity, git forge",
 			Includes: []string{"Virtual machines", "Single sign-on", "Git forge"}, DataDisks: "none"},
 	}, nil
@@ -79,7 +86,10 @@ func (s *System) TestNetwork(ctx context.Context, cfg engine.NetConfig) engine.N
 		r.GatewayVLANs = []int{0}
 		return r
 	}
-	r.Gateway, r.DNS = engine.CheckOK, engine.CheckOK
+	r.DNS = engine.CheckOK
+	if cfg.Gateway.IsValid() {
+		r.Gateway = engine.CheckOK
+	}
 	return r
 }
 
@@ -111,8 +121,10 @@ func (s *System) Install(ctx context.Context, req engine.InstallRequest, ev func
 			}
 		case engine.InstSecureBoot:
 			wait(time.Second)
-			ev(engine.InstallEvent{Step: i, Status: engine.Done, MOK: "4831 7720"})
-			continue
+			if !req.Purpose.NeedsSecureBootOff {
+				ev(engine.InstallEvent{Step: i, Status: engine.Done, MOK: "4831 7720"})
+				continue
+			}
 		default:
 			wait(1500 * time.Millisecond)
 		}

@@ -13,8 +13,9 @@ upload() { # name file
   virsh -q vol-upload --pool $pool "$1" "$2"
 }
 
-create() { # name port [secureboot]
+create() { # name port [secureboot [virt-install args...]]
   local n=$1 port=$2 sb=${3:-off} d args=()
+  shift $(($# < 3 ? $# : 3))
   for d in sys1:40 sys2:40 hdd1:16 hdd2:16 hdd3:16 hdd4:16; do
     virsh -q vol-delete --pool $pool "$n-${d%%:*}.qcow2" 2>/dev/null || true
     virsh -q vol-create-as $pool "$n-${d%%:*}.qcow2" "${d##*:}G" --format qcow2 >/dev/null
@@ -34,7 +35,15 @@ create() { # name port [secureboot]
     --boot "$fw" --controller scsi,model=virtio-scsi "${args[@]}" \
     --network network=default,model=virtio --tpm none \
     --serial "tcp,host=127.0.0.1:$port,mode=bind,protocol.type=raw" \
-    --graphics vnc,listen=127.0.0.1 --video virtio --noautoconsole
+    --graphics vnc,listen=127.0.0.1 --video virtio --noautoconsole "$@"
+}
+
+flatnet() { # a network with no DHCP and no gateway; the host is 10.99.0.1
+  virsh -q net-info msi-flat >/dev/null 2>&1 && return
+  virsh -q net-define /dev/stdin <<'XML'
+<network><name>msi-flat</name><ip address="10.99.0.1" prefix="24"/></network>
+XML
+  virsh -q net-start msi-flat
 }
 
 destroy() { # name

@@ -104,9 +104,7 @@ func (m *Model) viewConfirm() screen {
 			warns = append(warns, t.S(t.Warn).Render(t.Alert+" ")+t.S(t.Fg).Render(fmt.Sprintf("%s holds %s; it goes too.", d.Name, d.Holds)))
 		}
 	}
-	if w := m.secureBootWarning(p); w != "" {
-		warns = append(warns, w)
-	}
+	warns = append(warns, m.secureBootWarning(p)...)
 	if len(warns) > 0 {
 		lines = append(lines, "")
 		lines = append(lines, warns...)

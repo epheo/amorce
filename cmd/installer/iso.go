@@ -64,6 +64,7 @@ func isoCmd(args []string) error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("%s: installs as %s, updates from %s\n", ref, im.Name, im.Target)
 		ix.Images = append(ix.Images, im)
 	}
 	if len(ix.Images) > 0 {
@@ -201,9 +202,16 @@ func addImage(tree, ref string, over media.Image) (media.Image, error) {
 		return media.Image{}, err
 	}
 	l := func(k string) string { return labels[media.LabelPrefix+k] }
+	// Updates come from where the image was taken. Labels are inherited by
+	// every image built FROM this one, so the target label only speaks for
+	// local builds and digest pins, which name no place to update from.
+	pulled := target
+	if strings.Contains(pulled, "@") {
+		pulled = ""
+	}
 	im := media.Image{
 		ID: l("id"), Name: l("name"), Summary: l("summary"), DataDisks: l("data-disks"), SecureBoot: l("secure-boot"),
-		Layout: layout, Tag: tag, Target: firstOf(over.Target, l("target"), target), Bytes: size,
+		Layout: layout, Tag: tag, Target: firstOf(over.Target, pulled, l("target"), target), Bytes: size,
 	}
 	if v := l("includes"); v != "" {
 		im.Includes = strings.Split(v, ";")

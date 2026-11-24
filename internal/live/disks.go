@@ -19,6 +19,7 @@ type blockdev struct {
 	Size     uint64     `json:"size"`
 	Rota     bool       `json:"rota"`
 	Type     string     `json:"type"`
+	Vendor   string     `json:"vendor"`
 	Model    string     `json:"model"`
 	Serial   string     `json:"serial"`
 	RO       bool       `json:"ro"`
@@ -29,7 +30,7 @@ type blockdev struct {
 }
 
 func lsblk(ctx context.Context, dev ...string) ([]blockdev, error) {
-	args := append([]string{"-J", "-b", "-o", "NAME,SIZE,ROTA,TYPE,MODEL,SERIAL,RO,FSTYPE,LABEL,PTTYPE"}, dev...)
+	args := append([]string{"-J", "-b", "-o", "NAME,SIZE,ROTA,TYPE,VENDOR,MODEL,SERIAL,RO,FSTYPE,LABEL,PTTYPE"}, dev...)
 	out, err := exec.CommandContext(ctx, "lsblk", args...).Output()
 	if err != nil {
 		return nil, err
@@ -59,7 +60,7 @@ func (s *System) disks(ctx context.Context) ([]engine.Disk, error) {
 		}
 		disk := engine.Disk{
 			Name: d.Name, Path: path, Model: strings.TrimSpace(d.Model), Serial: strings.TrimSpace(d.Serial),
-			Size: d.Size, SSD: !d.Rota, Holds: holds(d),
+			Size: d.Size, SSD: !d.Rota, Holds: holds(d), Controller: raidController(d.Vendor, d.Model),
 		}
 		disk.Health, disk.Failing = smart(ctx, d.Name)
 		out = append(out, disk)
@@ -141,6 +142,26 @@ func byID() map[string]string {
 		}
 	}
 	return out
+}
+
+// raidVolumes are model and vendor words of hardware RAID volumes: Dell
+// PERC, HPE Smart Array, Broadcom MegaRAID and its OEM boards, Adaptec.
+var raidVolumes = []string{"PERC", "LOGICAL VOLUME", "RAID", "MR9", "SMC3108", "ADAPTEC"}
+
+// raidController returns the controller's name when vendor and model are a
+// RAID volume's, or "".
+func raidController(vendor, model string) string {
+	v, m := strings.TrimSpace(vendor), strings.TrimSpace(model)
+	both := strings.ToUpper(v + " " + m)
+	for _, w := range raidVolumes {
+		if strings.Contains(both, w) {
+			if m == "LOGICAL VOLUME" {
+				return "Smart Array"
+			}
+			return m
+		}
+	}
+	return ""
 }
 
 // holds says in plain words what is on a disk, or "" when it looks blank.

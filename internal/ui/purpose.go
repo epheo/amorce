@@ -62,8 +62,8 @@ func (m *Model) viewPurpose() screen {
 		left = append(left, "", t.S(t.Muted).Render(why))
 	}
 	if m.purposeCur < len(st.Purposes) {
-		if w := m.secureBootWarning(st.Purposes[m.purposeCur]); w != "" {
-			left = append(left, "", w)
+		if w := m.secureBootWarning(st.Purposes[m.purposeCur]); w != nil {
+			left = append(append(left, ""), w...)
 		}
 	}
 	panel := m.setup()
@@ -81,12 +81,19 @@ func (m *Model) viewPurpose() screen {
 	}
 }
 
-// secureBootWarning says, before anything is erased, that p will not run
-// on this machine as its firmware is set.
-func (m *Model) secureBootWarning(p engine.Purpose) string {
-	if !p.NeedsSecureBootOff || !m.st.Machine.SecureBoot {
-		return ""
+// secureBootWarning says, before anything is erased, that p will not fully
+// run on this machine as its firmware is set, and what to do about it.
+func (m *Model) secureBootWarning(p engine.Purpose) []string {
+	if !m.needsSecureBootOff(p) {
+		return nil
 	}
 	t := m.t
-	return t.S(t.Warn).Render(t.Alert+" ") + t.S(t.Fg).Render("Secure Boot is on; "+p.Name+" needs it off for now.")
+	return []string{
+		t.S(t.Warn).Render(t.Alert+" ") + t.S(t.Fg).Render("Secure Boot is on; "+p.Name+" needs it off for now."),
+		t.S(t.Muted).Render("  Install, then turn it off in the firmware setup."),
+	}
+}
+
+func (m *Model) needsSecureBootOff(p engine.Purpose) bool {
+	return p.NeedsSecureBootOff && m.st.Machine.SecureBoot
 }
