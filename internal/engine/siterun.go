@@ -282,12 +282,12 @@ func sitePlan(m Machine, p Purpose, d *site.Disks) (DiskPlan, string) {
 			return plan, "The site file's system disk " + spec.System + " is not in this machine."
 		}
 		data := map[string]bool{}
-		if p.DataDisks == "pairs" {
+		if p.UsesDataDisks() {
 			for _, x := range m.Disks {
 				data[x.Name] = x.Name != sys.Name
 			}
 		}
-		plan = PlanFromRoles(m, sys.Name, data)
+		plan = PlanFromRoles(m, sys.Name, data, p.DataDisks)
 	}
 	if spec.Data == "none" {
 		for _, pool := range plan.Pools {

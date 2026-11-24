@@ -480,7 +480,7 @@ func (m *Model) planSummary() string {
 func (m *Model) dataBytes() uint64 {
 	var total uint64
 	for _, pool := range m.st.Plan.Pools {
-		var small uint64
+		var small uint64 // a mirror holds its smallest disk
 		for i, n := range pool.Disks {
 			d, _ := m.st.Disk(n)
 			if i == 0 || d.Size < small {
@@ -489,8 +489,11 @@ func (m *Model) dataBytes() uint64 {
 		}
 		if pool.Raid == "raid1" {
 			total += small
-		} else {
-			total += small * uint64(len(pool.Disks))
+			continue
+		}
+		for _, n := range pool.Disks {
+			d, _ := m.st.Disk(n)
+			total += d.Size
 		}
 	}
 	return total

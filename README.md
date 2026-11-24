@@ -38,10 +38,11 @@ podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/microshift-install
 
 ## Purposes
 
-- MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail.
-- Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication.
-- Virtualization: the da2 image; VMs, kanidm, deskube, forgejo.
+- MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels on the distro's branch installer/purpose.
+- Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication. Labels on stornas's branch installer-plan.
+- Virtualization: no public image yet; da2 is one site's image (its node name, its VGs), not one to install elsewhere.
 - Each image describes itself in labels; the installer hard-codes no purpose.
+- Each purpose works without the installer: the installer only feeds its own mechanisms (the distro's below).
 - An image without labels can be described by `iso` flags (`--name`, `--summary`, `--data-disks`...).
 
 Labels, prefix `io.github.epheo.installer.`:
@@ -51,10 +52,12 @@ id          storage
 name        Storage
 summary     File shares, iSCSI disks, replication
 includes    Web UI on port 30080;SMB and NFS shares;...   (';' separated)
-data-disks  pairs | none
+data-disks  pairs | thin | none
 target      ghcr.io/epheo/stornas-os:latest                (updates, for local builds)
 secure-boot off                                            (cannot run with Secure Boot on)
 ```
+
+- An image built FROM another inherits its labels: the distro sets `secure-boot=off` only while its DRBD module is unsigned, so derived images get the right one.
 
 - Updates come from where `iso` pulled the image; `target` names that place only for local builds and digest pins.
 - Why: labels are inherited, so an image built FROM stornas-os would otherwise update back to stornas-os.
@@ -205,7 +208,9 @@ RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.servic
 ## Disks
 
 - System: one disk; the smallest healthy SSD of 32 GB or more.
-- Data: the purpose's `data-disks` label says what it does with the rest; `pairs` mirrors same-size disks of the same kind.
+- Data: the purpose's `data-disks` label says what it does with the rest.
+- `pairs` (stornas) mirrors same-size disks of the same kind; the operator makes a StoragePool of each pair.
+- `thin` (the distro) puts every healthy data disk in VG `myvg1` with thin pool `thin`: the distro's own recipe for its default r-drbd Pool, run by its `microshift-r-drbd-data-disks` unit at the first start.
 - An odd disk, and failing ones, stay unused.
 - The installer wipes the confirmed disks and records the plan; it builds nothing.
 - Disks left out stay unclaimed; the purpose's UI can use them later.
@@ -214,10 +219,12 @@ RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.servic
 Plan file, `/etc/microshift-installer/data-disks.json`:
 
 ```json
-{"version": 1, "pools": [
+{"version": 1, "layout": "pairs", "pools": [
   {"name": "hdd-1", "raid": "raid1", "tier": "hdd",
    "devices": ["/dev/disk/by-id/wwn-...", "/dev/disk/by-id/wwn-..."]}]}
 ```
+
+- `layout` is the image's `data-disks`: each purpose builds only its own layout, so an image switched to another never takes disks in use.
 
 - stornas (branch installer-plan): the agent reports the file in its NodeInventory; the operator creates those StoragePools once and marks the inventory.
 - A pool the user deletes later is never recreated.
@@ -348,6 +355,7 @@ machines:
 - `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console.
 - `KMOD_KEY=key.pem PAYLOAD=msi-signed.iso test/vm/media.sh BASE`, then `PAYLOAD=msi-signed.iso test/vm/mok.sh VM PORT`: an image with DRBD signed by a test key, the way the distro signs it (`signed.Containerfile`); Secure Boot on; an unattended install queues the key; the test answers MokManager over the serial console; DRBD must load under lockdown.
 - `test/vm/settings.sh VM PORT`: over SSH to an installed console, a root password and a new address; the machine restarts on it, MicroShift and the UI follow, the password logs in, and F2 opens the settings on tty1. `ptydrive.py` drives the SSH session.
+- `test/vm/purpose.sh VM PORT`: media with MicroShift beside Storage; a site file picks MicroShift; the distro builds the data disks into its default Pool. Needs the distro's installer/purpose image, or its published one with that branch's unit and labels added.
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
@@ -377,8 +385,8 @@ Designed during implementation, not in the mockups:
 - Join words: the EFF short word list 2.0 (Electronic Frontier Foundation, CC BY 3.0 US).
 
 - stornas: the install-plan branch, and the labels in its image.
-- distro: the installed console lines above, once this repo publishes its image; labels for the MicroShift purpose (safe now: updates follow the pull, not inherited labels); the KMOD_SIGNING_KEY secret, for DRBD module signing.
-- da2: labels; registry credentials for updates after an offline install.
+- distro: the installed console lines above, once this repo publishes its image; branch installer/purpose (labels, the data disks unit); branch kmod/sign-drbd and its KMOD_SIGNING_KEY secret.
+- A Virtualization image, public, with KubeVirt, CDI, Argo CD and dotvirt; registry credentials for updates after an offline install.
 
 ## Open questions
 

@@ -58,11 +58,7 @@ func (m *Model) planTree(width int) []string {
 		out = append(out, m.group("System", "one disk", humanBytes(d.Size), width), m.diskRow("└── ", d), "")
 	}
 	if len(plan.Pools) > 0 {
-		desc := fmt.Sprintf("%d mirrored pairs, built by %s", len(plan.Pools), p.Name)
-		if len(plan.Pools) == 1 {
-			desc = "1 mirrored pair, built by " + p.Name
-		}
-		out = append(out, m.group("Data", desc, humanBytes(m.dataBytes()), width))
+		out = append(out, m.group("Data", m.dataLayout(plan)+", built by "+p.Name, humanBytes(m.dataBytes()), width))
 		for i, pool := range plan.Pools {
 			last := i == len(plan.Pools)-1
 			branch, stem := "├── ", "│   "
@@ -71,7 +67,7 @@ func (m *Model) planTree(width int) []string {
 			}
 			kind := "mirror"
 			if pool.Raid != "raid1" {
-				kind = "no copy"
+				kind = "thin pool, no copy"
 			}
 			out = append(out, t.S(t.Faint).Render(branch)+t.S(t.Fg).Width(9).Render(pool.Name)+t.S(t.Muted).Render(kind))
 			for j, n := range pool.Disks {
@@ -87,7 +83,7 @@ func (m *Model) planTree(width int) []string {
 	}
 	if len(plan.Unused) > 0 {
 		desc := "left untouched"
-		if p.DataDisks == "pairs" {
+		if p.DataDisks == engine.DataPairs {
 			desc = "free for a pool later, in the web UI"
 		}
 		out = append(out, t.B(t.Fg).Render("Not used")+t.S(t.Muted).Render("  "+desc))
@@ -157,7 +153,11 @@ func (m *Model) viewDisks() screen {
 		kv := func(k, v string) string { return t.S(t.Muted).Width(12).Render(k) + t.S(t.Fg).Render(v) }
 		panel = append(panel, "", t.B(t.Good).Render("Space"), kv("System", humanBytes(d.Size)))
 		if len(st.Plan.Pools) > 0 {
-			panel = append(panel, kv("Your data", humanBytes(m.dataBytes())), kv("Survives", "1 disk per pair"))
+			survives := "no disk loss"
+			if st.Plan.Pools[0].Raid == "raid1" {
+				survives = "1 disk per pair"
+			}
+			panel = append(panel, kv("Your data", humanBytes(m.dataBytes())), kv("Survives", survives))
 		}
 	}
 	return screen{
@@ -172,7 +172,7 @@ func (m *Model) viewDisks() screen {
 func (m *Model) raidWarning() []string {
 	t := m.t
 	p, _ := m.st.Purpose()
-	if p.DataDisks != "pairs" {
+	if p.DataDisks != engine.DataPairs {
 		return nil
 	}
 	var names []string
@@ -200,17 +200,17 @@ func (m *Model) raidWarning() []string {
 
 // roleEditor lets the user say, disk by disk, what each one is for.
 type roleEditor struct {
-	names    []string
-	roles    map[string]int // 0 system, 1 data, 2 not used
-	cur      int
-	usesData bool
+	names  []string
+	roles  map[string]int // 0 system, 1 data, 2 not used
+	cur    int
+	layout string // the purpose's data-disks
 }
 
 var roleNames = [...]string{"System", "Data", "Not used"}
 
 func newRoleEditor(st engine.State) *roleEditor {
 	p, _ := st.Purpose()
-	r := &roleEditor{roles: map[string]int{}, usesData: p.DataDisks == "pairs"}
+	r := &roleEditor{roles: map[string]int{}, layout: p.DataDisks}
 	for _, d := range st.Machine.Disks {
 		r.names = append(r.names, d.Name)
 		r.roles[d.Name] = 2
@@ -246,7 +246,7 @@ func (r *roleEditor) plan(m engine.Machine) (engine.DiskPlan, string) {
 			return engine.DiskPlan{}, "The system disk needs 32 GB or more."
 		}
 	}
-	return engine.PlanFromRoles(m, system, data), ""
+	return engine.PlanFromRoles(m, system, data, r.layout), ""
 }
 
 func (m *Model) keyRoles(s string) {
@@ -261,7 +261,7 @@ func (m *Model) keyRoles(s string) {
 	case "space", "right":
 		n := r.names[r.cur]
 		next := (r.roles[n] + 1) % 3
-		if next == 1 && !r.usesData {
+		if next == 1 && r.layout != engine.DataPairs && r.layout != engine.DataThin {
 			next = 2
 		}
 		r.roles[n] = next
@@ -307,11 +307,23 @@ func (m *Model) viewRoles() screen {
 	if msg != "" {
 		left = append(left, t.S(t.Warn).Render(t.Alert+" ")+t.S(t.Fg).Render(msg))
 	} else if len(plan.Pools) > 0 {
-		left = append(left, t.S(t.Muted).Render(fmt.Sprintf("Data: %d mirrored pairs.", len(plan.Pools))))
+		left = append(left, t.S(t.Muted).Render("Data: "+m.dataLayout(plan)+"."))
 	}
 	return screen{
 		left: left, focusFrom: top, focusTo: top + len(r.names) - 1, panel: m.setup(),
 		help: [][2]string{{"up/down", "disk"}, {"space", "change"}, {"enter", "done"}, {"esc", "cancel"}},
 		pill: "Disks", pillColor: t.Border, stepNo: 4, right: m.statusRight(),
 	}
+}
+
+// dataLayout says what the plan builds from the data disks.
+func (m *Model) dataLayout(plan engine.DiskPlan) string {
+	if len(plan.Pools) == 1 && plan.Pools[0].Raid != "raid1" {
+		n := len(plan.Pools[0].Disks)
+		return fmt.Sprintf("one pool of %d %s", n, plural(n, "disk", "disks"))
+	}
+	if len(plan.Pools) == 1 {
+		return "1 mirrored pair"
+	}
+	return fmt.Sprintf("%d mirrored pairs", len(plan.Pools))
 }

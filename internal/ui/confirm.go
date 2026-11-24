@@ -92,8 +92,7 @@ func (m *Model) viewConfirm() screen {
 		for _, pool := range plan.Pools {
 			n += len(pool.Disks)
 		}
-		lines = append(lines, kv("Data", fmt.Sprintf("%d disks, %d mirrored %s, %s", n, len(plan.Pools),
-			plural(len(plan.Pools), "pair", "pairs"), humanBytes(m.dataBytes()))))
+		lines = append(lines, kv("Data", fmt.Sprintf("%d disks, %s, %s", n, m.dataLayout(plan), humanBytes(m.dataBytes()))))
 	}
 	if len(plan.Unused) > 0 {
 		lines = append(lines, kv("Kept", strings.Join(plan.Unused, ", ")+", not touched"))

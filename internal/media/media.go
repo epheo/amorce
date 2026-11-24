@@ -20,7 +20,7 @@ type Image struct {
 	Name      string   `json:"name"`
 	Summary   string   `json:"summary"`
 	Includes  []string `json:"includes,omitempty"`
-	DataDisks string   `json:"dataDisks"` // none or pairs
+	DataDisks string   `json:"dataDisks"` // none, pairs or thin
 	Layout    string   `json:"layout"`    // directory under images/
 	Tag       string   `json:"tag"`
 	Target    string   `json:"target"` // registry reference updates come from

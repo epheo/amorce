@@ -347,6 +347,12 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 		written = append(written, filepath.Join(deploy, filepath.Dir(SitePath)))
 	}
 	if req.Profile == site.Worker {
+		// The console joins the worker; without it MicroShift would stay
+		// masked for good.
+		if _, err := os.Stat(filepath.Join(deploy, "usr/lib/systemd/system/installer-console.service")); err != nil {
+			return fmt.Errorf("this image has no installer console, which joins workers: install it as a controller, " +
+				"then join it by hand (microshift-profile worker, microshift add-node --worker)")
+		}
 		// Started before the join, MicroShift would make this machine a
 		// controller; the console unmasks it when it joins.
 		p := filepath.Join(deploy, "etc/systemd/system/microshift.service")
@@ -469,8 +475,11 @@ func uuid() string {
 }
 
 // planFile is the contract with the purpose: pools by stable device path.
+// Layout is the purpose's data-disks label, so the purpose that builds it
+// knows the plan is its own; a version 1 file without it is pairs.
 type planFile struct {
 	Version int        `json:"version"`
+	Layout  string     `json:"layout"`
 	Pools   []planPool `json:"pools"`
 }
 
@@ -482,16 +491,25 @@ type planPool struct {
 }
 
 func (s *System) writePlan(ctx context.Context, deploy string, req engine.InstallRequest) error {
-	paths := map[string]string{}
+	disks := map[string]engine.Disk{}
 	for _, d := range req.Machine.Disks {
-		paths[d.Name] = d.Path
+		disks[d.Name] = d
 	}
-	pf := planFile{Version: 1}
+	pf := planFile{Version: 1, Layout: req.Purpose.DataDisks}
 	for _, p := range req.Plan.Pools {
-		tier, _, _ := strings.Cut(p.Name, "-")
-		pp := planPool{Name: p.Name, Raid: p.Raid, Tier: tier}
+		pp := planPool{Name: p.Name, Raid: p.Raid}
+		kinds := map[bool]bool{}
 		for _, n := range p.Disks {
-			pp.Devices = append(pp.Devices, paths[n])
+			pp.Devices = append(pp.Devices, disks[n].Path)
+			kinds[disks[n].SSD] = true
+		}
+		switch {
+		case len(kinds) > 1:
+			pp.Tier = "mixed"
+		case kinds[true]:
+			pp.Tier = "ssd"
+		default:
+			pp.Tier = "hdd"
 		}
 		pf.Pools = append(pf.Pools, pp)
 	}

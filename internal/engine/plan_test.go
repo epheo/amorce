@@ -76,3 +76,21 @@ func TestHostnames(t *testing.T) {
 		}
 	}
 }
+
+// thin takes every healthy data disk into one pool, for the distro's
+// default r-drbd pool; a failing disk stays out.
+func TestThinPoolsEveryDataDisk(t *testing.T) {
+	m := machine()
+	m.Disks[5].Failing = true
+	p := ProposePlan(m, Purpose{DataDisks: DataThin})
+	if len(p.Pools) != 1 || p.Pools[0].Raid != "none" || !slices.Equal(p.Pools[0].Disks, []string{"nvme1n1", "sda", "sdb", "sdc"}) {
+		t.Fatalf("pools = %+v", p.Pools)
+	}
+	if !slices.Equal(p.Unused, []string{"sdd"}) {
+		t.Fatalf("unused = %v", p.Unused)
+	}
+	r := PlanFromRoles(m, "nvme0n1", map[string]bool{"sda": true, "sdb": true}, DataThin)
+	if len(r.Pools) != 1 || len(r.Pools[0].Disks) != 2 {
+		t.Fatalf("by hand: %+v", r)
+	}
+}

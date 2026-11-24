@@ -5,6 +5,16 @@ import (
 	"slices"
 )
 
+// Data disk layouts, as a purpose's data-disks label names them; the
+// purpose builds them at its first start, from the plan.
+const (
+	DataPairs = "pairs" // a mirror per pair of same-size disks of a kind
+	DataThin  = "thin"  // one LVM thin pool over every data disk
+)
+
+// UsesDataDisks says whether the purpose takes disks beyond the system disk.
+func (p Purpose) UsesDataDisks() bool { return p.DataDisks == DataPairs || p.DataDisks == DataThin }
+
 // minSystemBytes is the smallest disk bootc images fit on with room to update.
 const minSystemBytes = 32 << 30
 
@@ -12,7 +22,7 @@ const minSystemBytes = 32 << 30
 func BestFit(m Machine, ps []Purpose) Purpose {
 	best := ps[0]
 	for _, p := range ps {
-		if p.DataDisks == "pairs" && len(ProposePlan(m, p).Pools) > 0 {
+		if p.DataDisks == DataPairs && len(ProposePlan(m, p).Pools) > 0 {
 			return p
 		}
 	}
@@ -21,7 +31,7 @@ func BestFit(m Machine, ps []Purpose) Purpose {
 
 // BestFitReason explains BestFit's choice in one line, or returns "".
 func BestFitReason(m Machine, p Purpose) string {
-	if p.DataDisks != "pairs" {
+	if p.DataDisks != DataPairs {
 		return ""
 	}
 	plan := ProposePlan(m, p)
@@ -62,14 +72,39 @@ func ProposePlan(m Machine, p Purpose) DiskPlan {
 			rest = append(rest, d)
 		}
 	}
-	if p.DataDisks != "pairs" {
-		for _, d := range rest {
-			plan.Unused = append(plan.Unused, d.Name)
-		}
-		return plan
-	}
-	plan.Pools, plan.Unused = pairUp(rest)
+	plan.Pools, plan.Unused = layOut(p.DataDisks, rest)
 	return plan
+}
+
+func layOut(layout string, disks []Disk) ([]Pool, []string) {
+	switch layout {
+	case DataPairs:
+		return pairUp(disks)
+	case DataThin:
+		return onePool(disks)
+	}
+	var unused []string
+	for _, d := range disks {
+		unused = append(unused, d.Name)
+	}
+	return nil, unused
+}
+
+// onePool puts every healthy disk in one pool; failing ones stay unused.
+func onePool(disks []Disk) ([]Pool, []string) {
+	pool := Pool{Name: "data", Raid: "none"}
+	var unused []string
+	for _, d := range disks {
+		if d.Failing {
+			unused = append(unused, d.Name)
+			continue
+		}
+		pool.Disks = append(pool.Disks, d.Name)
+	}
+	if len(pool.Disks) == 0 {
+		return nil, unused
+	}
+	return []Pool{pool}, unused
 }
 
 // pairUp mirrors disks of the same kind and size; the odd ones stay unused.
@@ -128,7 +163,7 @@ func (p DiskPlan) Erased() []string {
 }
 
 // PlanFromRoles rebuilds a plan after the user assigned roles by hand.
-func PlanFromRoles(m Machine, system string, data map[string]bool) DiskPlan {
+func PlanFromRoles(m Machine, system string, data map[string]bool, layout string) DiskPlan {
 	plan := DiskPlan{System: system}
 	var rest []Disk
 	for _, d := range m.Disks {
@@ -140,7 +175,7 @@ func PlanFromRoles(m Machine, system string, data map[string]bool) DiskPlan {
 			plan.Unused = append(plan.Unused, d.Name)
 		}
 	}
-	pools, unused := pairUp(rest)
+	pools, unused := layOut(layout, rest)
 	plan.Pools = pools
 	plan.Unused = append(plan.Unused, unused...)
 	return plan

@@ -81,7 +81,8 @@ type Purpose struct {
 	Source string
 	// Target is where updates come from after install.
 	Target string
-	// DataDisks is how the purpose uses disks beyond the system disk: none or pairs.
+	// DataDisks is how the purpose uses disks beyond the system disk: none,
+	// DataPairs or DataThin.
 	DataDisks string
 	// Bytes is the image's compressed size, for install progress.
 	Bytes int64
