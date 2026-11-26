@@ -6,4 +6,4 @@ FROM $BASE
 LABEL io.github.epheo.installer.domain="console;git" \
       io.github.epheo.installer.identity="kanidm:idm" \
       io.github.epheo.installer.settings="/etc/dotvirt/appliance.env" \
-      io.github.epheo.installer.reserved-users="admin;anonymous"
+      io.github.epheo.installer.reserved-users="admin;anonymous;api;assets;attachments;avatar;avatars;captcha;login;metrics;org;v2"
