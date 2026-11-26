@@ -5,6 +5,7 @@ package engine
 import (
 	"context"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/epheo/amorce/internal/report"
@@ -54,6 +55,10 @@ type Disk struct {
 	// its volumes; the drives behind it are out of sight.
 	Controller string
 }
+
+// Stable says whether Path names this disk at every start: a kernel name
+// can point at another disk on the installed system.
+func (d Disk) Stable() bool { return strings.HasPrefix(d.Path, "/dev/disk/by-id/") }
 
 type NIC struct {
 	Name      string

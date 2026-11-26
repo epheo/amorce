@@ -90,12 +90,16 @@ func layOut(layout string, disks []Disk) ([]Pool, []string) {
 	return nil, unused
 }
 
-// onePool puts every healthy disk in one pool; failing ones stay unused.
+// dataReady says whether d may hold data: healthy, and found again at the
+// purpose's first start by the name the plan gives it.
+func dataReady(d Disk) bool { return !d.Failing && d.Stable() }
+
+// onePool puts every data-ready disk in one pool; the others stay unused.
 func onePool(disks []Disk) ([]Pool, []string) {
 	pool := Pool{Name: "data", Raid: "none"}
 	var unused []string
 	for _, d := range disks {
-		if d.Failing {
+		if !dataReady(d) {
 			unused = append(unused, d.Name)
 			continue
 		}
@@ -117,7 +121,7 @@ func pairUp(disks []Disk) ([]Pool, []string) {
 	var order []key
 	var unused []string
 	for _, d := range disks {
-		if d.Failing {
+		if !dataReady(d) {
 			unused = append(unused, d.Name)
 			continue
 		}

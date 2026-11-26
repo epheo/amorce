@@ -212,6 +212,7 @@ RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.servic
 - `pairs` (stornas) mirrors same-size disks of the same kind; the operator makes a StoragePool of each pair.
 - `thin` (the distro) puts every healthy data disk in VG `myvg1` with thin pool `thin`: the distro's own recipe for its default r-drbd Pool, run by its `microshift-r-drbd-data-disks` unit at the first start.
 - An odd disk, and failing ones, stay unused.
+- A disk with no `/dev/disk/by-id` name is never data: its kernel name may be another blank disk at the first start.
 - The installer wipes the confirmed disks and records the plan; it builds nothing.
 - Disks left out stay unclaimed; the purpose's UI can use them later.
 - Why: the stornas operator owns node state; the installer must not duplicate it.
@@ -367,6 +368,7 @@ Designed during implementation, not in the mockups:
 
 - Hardware RAID volumes (handled): known controller models are marked RAID; a purpose that mirrors drives itself says to set the controller to HBA mode.
 - Odd or mixed data disk counts (handled: odd ones stay unused).
+- A disk with no stable name (handled): it can hold the system, never data; the disks screen says so.
 - Old md, LVM, or filesystem signatures on chosen disks (handled: shown, then wiped).
 - No DHCP and no gateway (handled): the gateway is optional; the result says only the subnet is in reach. stornas serves its UI without a default route.
 - Secure Boot on for an image that needs it off (handled): warned on Purpose, Confirm and Ready; installs anyway.

@@ -500,6 +500,9 @@ func (s *System) writePlan(ctx context.Context, deploy string, req engine.Instal
 		pp := planPool{Name: p.Name, Raid: p.Raid}
 		kinds := map[bool]bool{}
 		for _, n := range p.Disks {
+			if !disks[n].Stable() {
+				return fmt.Errorf("%s has no stable name for %s to find it by", n, req.Purpose.Name)
+			}
 			pp.Devices = append(pp.Devices, disks[n].Path)
 			kinds[disks[n].SSD] = true
 		}

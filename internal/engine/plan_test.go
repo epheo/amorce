@@ -8,7 +8,7 @@ import (
 const tb = 1000 * 1000 * 1000 * 1000
 
 func machine() Machine {
-	return Machine{Disks: []Disk{
+	m := Machine{Disks: []Disk{
 		{Name: "nvme0n1", Size: 960e9, SSD: true},
 		{Name: "nvme1n1", Size: 960e9, SSD: true},
 		{Name: "sda", Size: 8 * tb},
@@ -16,6 +16,10 @@ func machine() Machine {
 		{Name: "sdc", Size: 8 * tb},
 		{Name: "sdd", Size: 8 * tb},
 	}}
+	for i := range m.Disks {
+		m.Disks[i].Path = "/dev/disk/by-id/wwn-" + m.Disks[i].Name
+	}
+	return m
 }
 
 func TestStoragePairsDataDisks(t *testing.T) {
@@ -91,6 +95,21 @@ func TestThinPoolsEveryDataDisk(t *testing.T) {
 	}
 	r := PlanFromRoles(m, "nvme0n1", map[string]bool{"sda": true, "sdb": true}, DataThin)
 	if len(r.Pools) != 1 || len(r.Pools[0].Disks) != 2 {
+		t.Fatalf("by hand: %+v", r)
+	}
+}
+
+// A disk known only by its kernel name may be another disk at the next
+// start: it can hold the system, never data.
+func TestUnstableDiskNeverHoldsData(t *testing.T) {
+	m := machine()
+	m.Disks[2].Path = "/dev/sda"
+	p := ProposePlan(m, Purpose{DataDisks: DataThin})
+	if slices.Contains(p.Pools[0].Disks, "sda") || !slices.Contains(p.Unused, "sda") {
+		t.Fatalf("plan = %+v", p)
+	}
+	r := PlanFromRoles(m, "nvme0n1", map[string]bool{"sda": true, "sdb": true, "sdc": true}, DataPairs)
+	if len(r.Pools) != 1 || slices.Contains(r.Pools[0].Disks, "sda") {
 		t.Fatalf("by hand: %+v", r)
 	}
 }
