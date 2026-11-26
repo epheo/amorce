@@ -117,6 +117,12 @@ func (m *Model) netReport() ([]string, []netChoice) {
 	case engine.CheckFailed:
 		lines = append(lines, muted("DNS does not answer."))
 	}
+	switch r.NTP {
+	case engine.CheckOK:
+		lines = append(lines, muted("The time server answers."))
+	case engine.CheckFailed:
+		lines = append(lines, muted("No time server answers: certificates need the right time."))
+	}
 	if c.Mode == engine.NetDHCP {
 		return lines, []netChoice{
 			{label: "Keep " + c.Address.Addr().String() + ", as a fixed address", act: actKeepFixed},
@@ -254,7 +260,12 @@ func (m *Model) netPanel() []string {
 	gw, gst := check(r.Gateway, c.Gateway.String())
 	out = append(out, kv("Gateway", gw, gst))
 	dns, dst := check(r.DNS, "answers")
-	return append(out, kv("DNS", dns, dst))
+	out = append(out, kv("DNS", dns, dst))
+	ntp, nst := check(r.NTP, "answers")
+	if r.NTP == engine.CheckUnknown {
+		ntp = "default"
+	}
+	return append(out, kv("Time", ntp, nst))
 }
 
 // cableDiagram draws the machine, each NIC's cable, and the switch port behind it.
@@ -366,12 +377,12 @@ func speed(mbps int) string {
 type netForm struct {
 	ifaces []string
 	iface  int
-	fields [4]input // VLAN, address, gateway, DNS
+	fields [5]input // VLAN, address, gateway, DNS, NTP
 	focus  int      // 0 is the interface, then the fields
 	err    string
 }
 
-var formLabels = [...]string{"Interface", "VLAN", "Address", "Gateway", "DNS"}
+var formLabels = [...]string{"Interface", "VLAN", "Address", "Gateway", "DNS", "NTP"}
 
 func newNetForm(st engine.State, c engine.NetConfig) *netForm {
 	f := &netForm{}
@@ -395,6 +406,7 @@ func newNetForm(st engine.State, c engine.NetConfig) *netForm {
 		dns = append(dns, d.String())
 	}
 	f.fields[3] = newInput(strings.Join(dns, ", "))
+	f.fields[4] = newInput(strings.Join(c.NTP, ", "))
 	if c.Iface == "" {
 		// Pick the first NIC with a link.
 		for i, n := range st.Machine.NICs {
@@ -446,6 +458,10 @@ func (f *netForm) config() (engine.NetConfig, string) {
 		}
 		c.DNS = append(c.DNS, d)
 	}
+	c.NTP = strings.FieldsFunc(strings.ToLower(f.fields[4].value), func(r rune) bool { return r == ',' || r == ' ' })
+	if msg := engine.CheckNTP(c.NTP); msg != "" {
+		return c, msg
+	}
 	return c, ""
 }
 
@@ -489,7 +505,8 @@ func (m *Model) keyForm(s string, k tea.KeyPressMsg) {
 func (m *Model) formView() []string {
 	t := m.t
 	f := m.form
-	out := []string{t.B(t.Title).Render("Settings for the installed system"), t.S(t.Muted).Render("VLAN empty means untagged."), ""}
+	out := []string{t.B(t.Title).Render("Settings for the installed system"),
+		t.S(t.Muted).Render("VLAN empty: untagged. NTP empty: the image's time servers."), ""}
 	for i, label := range formLabels {
 		lab := t.S(t.Muted).Width(11).Render(label)
 		var val string

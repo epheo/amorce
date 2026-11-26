@@ -29,8 +29,13 @@ func TestScreensFit(t *testing.T) {
 			m := New(context.Background(), eng, Options{Look: look})
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			for _, step := range []engine.Step{engine.StepHello, engine.StepNetwork, engine.StepPurpose,
-				engine.StepDisks, engine.StepName, engine.StepConfirm} {
-				eng.ChoosePurpose("storage")
+				engine.StepDisks, engine.StepName, engine.StepConfirm, engine.StepName} {
+				// The second Name is the names form of an image that offers them.
+				if step == engine.StepName && m.shown == engine.StepConfirm {
+					eng.ChoosePurpose("virtualization")
+				} else {
+					eng.ChoosePurpose("storage")
+				}
 				eng.Go(step)
 				m.Update(EngineMsg{})
 				out := m.View().Content
@@ -278,5 +283,80 @@ func TestSettings(t *testing.T) {
 		typeText("short")
 		press(tea.KeyEnter, tea.KeyEnter)
 		check("password", "Eight characters at least.")
+	}
+}
+
+// The names form at its fullest fits both sizes, shows what DNS answers,
+// and hands checked names to the engine.
+func TestNamesForm(t *testing.T) {
+	for _, size := range [][2]int{{100, 30}, {80, 24}} {
+		ctx := context.Background()
+		eng := engine.New(&demo.System{Speed: 1000})
+		eng.Start(ctx)
+		for i := 0; i < 200 && !eng.Snapshot().Discovered; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		cfg := demo.DemoNetwork()
+		cfg.VLAN = 110
+		cfg.Mode = engine.NetDHCP
+		eng.TestNetwork(ctx, cfg)
+		for i := 0; i < 300 && !eng.Snapshot().Net.Up; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		eng.ChooseNetwork(eng.Snapshot().Net.Config)
+		eng.ChoosePurpose("virtualization")
+		eng.Go(engine.StepName)
+		m := New(ctx, eng, Options{Look: LookNormal})
+		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		m.Update(EngineMsg{})
+		key := func(s string) {
+			for _, r := range s {
+				m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+			}
+		}
+		tab := func() { m.Update(tea.KeyPressMsg{Code: tea.KeyTab}) }
+		tab()
+		key("lab.example.com")
+		tab()
+		m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+		tab()
+		key("alice")
+		tab()
+		key("Alice Martin")
+		tab()
+		key("alice@example.com")
+		for i := 0; i < 300 && eng.Snapshot().NamesChecking; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		m.Update(EngineMsg{})
+		out := m.View().Content
+		plain := ansi.Strip(out)
+		if len(strings.Split(out, "\n")) > size[1] || strings.Contains(plain, "…") {
+			t.Errorf("%v: does not fit:\n%s", size, plain)
+		}
+		for _, l := range strings.Split(out, "\n") {
+			if lipgloss.Width(l) > size[0] {
+				t.Errorf("%v: too wide: %q", size, ansi.Strip(l))
+			}
+		}
+		for _, want := range []string{"Kanidm", "+ console.lab.example.com", "idm.lab.example.com  not found", "Alice Martin", "a new lease breaks"} {
+			if !strings.Contains(plain, want) {
+				t.Errorf("%v: %q missing:\n%s", size, want, plain)
+			}
+		}
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		for i := 0; i < 100 && eng.Snapshot().Step != engine.StepConfirm; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		st := eng.Snapshot()
+		want := engine.Names{Domain: "lab.example.com", Identity: "kanidm",
+			Admin: engine.Admin{User: "alice", Display: "Alice Martin", Email: "alice@example.com"}}
+		if st.Step != engine.StepConfirm || st.Names != want {
+			t.Fatalf("%v: step %d, names %+v", size, st.Step, st.Names)
+		}
+		m.Update(EngineMsg{})
+		if c := ansi.Strip(m.View().Content); !strings.Contains(c, "Kanidm, first admin alice") || !strings.Contains(c, "idm.lab.example.com does not point here") || !strings.Contains(c, "a new lease breaks") {
+			t.Errorf("%v: confirm:\n%s", size, c)
+		}
 	}
 }

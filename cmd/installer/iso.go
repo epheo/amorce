@@ -245,6 +245,9 @@ func addImage(tree, ref string, over media.Image) (media.Image, error) {
 	if v := l("includes"); v != "" {
 		im.Includes = strings.Split(v, ";")
 	}
+	if err := im.NamesFromLabels(l); err != nil {
+		return im, fmt.Errorf("%s: %w", ref, err)
+	}
 	im.ID = firstOf(over.ID, im.ID)
 	im.Name = firstOf(over.Name, im.Name, labels["org.opencontainers.image.title"], layout)
 	im.Summary = firstOf(over.Summary, im.Summary)

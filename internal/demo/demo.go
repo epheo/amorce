@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/epheo/amorce/internal/engine"
@@ -61,7 +62,9 @@ func (s *System) Purposes(ctx context.Context) ([]engine.Purpose, error) {
 			Includes:  []string{"Web UI on port 30080", "SMB and NFS shares", "iSCSI disks", "Snapshots", "Replication, 3+ machines"},
 			DataDisks: "pairs", NeedsSecureBootOff: true},
 		{ID: "virtualization", Name: "Virtualization", Summary: "Virtual machines, identity, git forge",
-			Includes: []string{"Virtual machines", "Single sign-on", "Git forge"}, DataDisks: "none"},
+			Includes: []string{"Virtual machines", "Single sign-on", "Git forge"}, DataDisks: "none",
+			Names: []string{"console", "git"}, Identity: "kanidm", IdentityName: "idm",
+			Settings: "/etc/dotvirt/appliance.env", ReservedUsers: []string{"admin", "anonymous"}},
 	}, nil
 }
 
@@ -92,6 +95,9 @@ func (s *System) TestNetwork(ctx context.Context, cfg engine.NetConfig) engine.N
 		return r
 	}
 	r.DNS = engine.CheckOK
+	if len(cfg.NTP) > 0 {
+		r.NTP = engine.CheckOK
+	}
 	if cfg.Gateway.IsValid() {
 		r.Gateway = engine.CheckOK
 	}
@@ -104,6 +110,19 @@ func DemoNetwork() engine.NetConfig {
 		Mode: engine.NetStatic, Iface: "eno1", VLAN: 120, Address: site,
 		Gateway: netip.MustParseAddr("10.20.120.1"), DNS: []netip.Addr{netip.MustParseAddr("10.20.0.53")},
 	}
+}
+
+// Resolve knows lab.example.com's wildcard, which points at the demo's
+// address; idm has no record yet.
+func (s *System) Resolve(ctx context.Context, name string) ([]netip.Addr, error) {
+	time.Sleep(400 * time.Millisecond)
+	switch {
+	case strings.HasPrefix(name, "idm."):
+		return nil, fmt.Errorf("not found")
+	case strings.HasSuffix(name, ".lab.example.com"):
+		return []netip.Addr{site.Addr()}, nil
+	}
+	return nil, fmt.Errorf("not found")
 }
 
 // Neighbors has nothing to add: Discover already knows the switches.

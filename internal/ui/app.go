@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // Options describe the terminal one Model draws on.
@@ -59,6 +60,7 @@ type Model struct {
 	disksCur   int
 	roles      *roleEditor
 	name       input
+	names      *namesForm
 	confirm    input
 	confirmTab bool
 	readyCur   int
@@ -78,7 +80,10 @@ func New(ctx context.Context, eng *engine.Engine, opt Options) *Model {
 		return m
 	}
 	m.st = eng.Snapshot()
-	m.shown = m.st.Step
+	// A terminal that attaches mid-wizard gets the step's fields; only the
+	// one that saw Ready arrive counts down to the restart.
+	m.enter(m.st.Step)
+	m.countdown = -1
 	return m
 }
 
@@ -143,6 +148,10 @@ func (m *Model) enter(s engine.Step) {
 		m.disksCur = 0
 	case engine.StepName:
 		m.name = newInput(m.st.Hostname)
+		m.names = nil
+		if p, ok := m.st.Purpose(); ok && p.OffersNames() && m.st.Profile != site.Worker {
+			m.names = newNamesForm(m.st)
+		}
 	case engine.StepConfirm:
 		m.confirm = newInput("")
 		m.confirmTab = false
@@ -185,6 +194,10 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case engine.StepDisks:
 		m.keyDisks(s)
 	case engine.StepName:
+		if m.names != nil {
+			m.keyNames(s, k)
+			return nil
+		}
 		m.keyName(s, k)
 	case engine.StepConfirm:
 		m.keyConfirm(s, k)
@@ -398,6 +411,9 @@ func (m *Model) screen() screen {
 	case engine.StepDisks:
 		return m.viewDisks()
 	case engine.StepName:
+		if m.names != nil {
+			return m.viewNames()
+		}
 		return m.viewName()
 	case engine.StepConfirm:
 		return m.viewConfirm()

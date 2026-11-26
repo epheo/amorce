@@ -40,7 +40,8 @@ podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/microshift-install
 
 - MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels on the distro's branch installer/purpose.
 - Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication. Labels on stornas's branch installer-plan.
-- Virtualization: dotvirt's `image/` (branch image/virtualization); KubeVirt, CDI, Argo CD, dotvirt, its console on port 30443.
+- Virtualization: the dotvirt appliance; KubeVirt, CDI, Argo CD, dotvirt, a git forge, Kanidm if chosen.
+- Planned: every appliance image lives in this repo, under `appliances/`: the dotvirt appliance (written by dotvirt's maintainers) and stornas-os, which moves here from stornas.
 - Each image describes itself in labels; the installer hard-codes no purpose.
 - Each purpose works without the installer: the installer only feeds its own mechanisms (the distro's below).
 - An image without labels can be described by `iso` flags (`--name`, `--summary`, `--data-disks`...).
@@ -55,6 +56,10 @@ includes    Web UI on port 30080;SMB and NFS shares;...   (';' separated)
 data-disks  pairs | thin | none
 target      ghcr.io/epheo/stornas-os:latest                (updates, for local builds)
 secure-boot off                                            (cannot run with Secure Boot on)
+domain      console;git                                    (names it serves under a site's wildcard domain)
+identity    kanidm:idm                                     (a sign-in provider it can install, and its name)
+settings    /etc/dotvirt/appliance.env                     (where the names and sign-in go; under /etc)
+reserved-users admin;anonymous                             (names its accounts or its web pages already use)
 ```
 
 - An image built FROM another inherits its labels: the distro sets `secure-boot=off` only while its DRBD module is unsigned, so derived images get the right one.
@@ -62,6 +67,7 @@ secure-boot off                                            (cannot run with Secu
 - Updates come from where `iso` pulled the image; `target` names that place only for local builds and digest pins.
 - Why: labels are inherited, so an image built FROM stornas-os would otherwise update back to stornas-os.
 - `iso` prints each image's name and update source.
+- `iso` refuses an image whose `domain`, `identity` and `settings` labels disagree: an identity needs names, names need a settings file.
 
 ## Non-goals for v1
 
@@ -118,7 +124,7 @@ Attended, first machine:
 2. Network: cable map with LLDP; live tests; the fix pre-selected.
 3. Purpose: list from image labels; best-fit badge from the hardware found; or join a first machine heard on the network.
 4. Disks: one system disk; the purpose's data plan; spare disks left free; or roles by hand.
-5. Name: the hostname, checked as typed.
+5. Name: the hostname, checked as typed; for an image that serves names, the domain and sign-in too.
 6. Confirm: every disk erased and every disk kept; typing the hostname unlocks erase.
 7. Installing: check, wipe, copy the image, write network, hand over the data plan, add the Secure Boot key.
 8. Ready: what the next start does; restarts by itself after 10 seconds unless a key is pressed.
@@ -168,7 +174,7 @@ The distro ships this binary; `installer console` takes tty1 of every installed 
 - What the purpose tells its admins: every `issue.d/*.issue` file, wrapped, never cut; stornas puts its web address, fingerprint and first password there.
 - On the first machine, the board of the site's machines.
 - Enter starts a login on tty1; alt+F2 has a plain one; the serial console keeps its getty.
-- F2, settings: the network, a root password, restart, shut down.
+- F2, settings: the network and its time servers, a root password, restart, shut down; the domain and sign-in, read only.
 - A new address rewrites what the installer wrote (the NetworkManager profile, MicroShift's `node.nodeIP`, this machine's site file entry), then restarts: configure-ovs builds br-ex from the profile at every start.
 - Only a machine nobody else reaches can change its address: not a worker, and not a first machine others report to.
 - The console asks no password for its settings: whoever has the console has the machine, as with the installer.
@@ -197,8 +203,10 @@ RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.servic
 ## Network
 
 - The live system takes DHCP where it can; the wizard offers to keep that address as a fixed one.
-- Settings by hand: interface, VLAN, address, gateway, DNS; applied to the live system and tested.
-- Tests: carrier, address conflict (ARP), gateway (ARP), DNS (a query for localhost; any answer counts).
+- Settings by hand: interface, VLAN, address, gateway, DNS, time servers (NTP); applied to the live system and tested.
+- Tests: carrier, address conflict (ARP), gateway (ARP), DNS (a query for localhost; any answer counts), NTP (one query, the clock left alone).
+- Time servers replace the image's public pool, which an air-gapped site never reaches: chrony.conf's `pool` lines are commented out and point at `/etc/microshift-installer/chrony`. Without any, the image's own stay, and DHCP's.
+- bootc then keeps the edited chrony.conf: the image's later changes to it no longer apply. Intended: the site's servers stay.
 - Gateway probe: when the gateway is silent, ARP for it untagged and on each candidate VLAN; the fix offered is where it answers.
 - Candidate VLANs: the port VLAN from LLDP, then 802.1Q tags seen in a few seconds of capture.
 - No evidence: the screen says the gateway answers nowhere it looked, and offers to edit or keep.
@@ -229,6 +237,48 @@ Plan file, `/etc/microshift-installer/data-disks.json`:
 
 - stornas (branch installer-plan): the agent reports the file in its NodeInventory; the operator creates those StoragePools once and marks the inventory.
 - A pool the user deletes later is never recreated.
+
+## Names and sign-in
+
+For an image labeled `domain`, the Name step also asks:
+
+- Domain, optional: the site's DNS points the names under it at this machine, by a wildcard or one record each. Empty: it is reached by its address.
+- Sign-in, for an image labeled `identity`: a token from the console, or the image's provider.
+- The provider needs a domain, and a first admin: a name, a full name (optional), an email.
+- Leaving the domain asks DNS for every name the image serves there (`console.<domain>`, ...).
+- A name that does not point at the machine's address warns, on Name and on Confirm; it never blocks: the site may set DNS later.
+- A domain on an address left to DHCP warns too: a new lease breaks the names until DNS follows.
+- The admin name is 2 to 32 of a to z and 0 to 9, a letter first, and none of the image's `reserved-users`.
+- A worker skips it: it serves the first machine's names.
+- Domain and sign-in are set at install: passkeys and accounts are bound to them.
+
+The checks, which the image may repeat at its start:
+
+- Domain: lowercase ASCII; an international one in its xn-- form.
+- Two labels or more, each 1 to 63 of a to z, 0 to 9 and inner dashes; the last one not all digits.
+- No address, no `*.`, no final dot.
+- Short enough that its longest name, the provider's included, fits in 253.
+- Email: one `@`; before it 1 to 64 ASCII characters, none of space, quotes, `\`, `$`, backticks, `<>()[],;:`.
+- After it a domain by the label rules above, in any case; 254 at most in all.
+- Full name: 64 characters at most, all printable.
+
+The answers go to the image's `settings` file, mode 0644, no secrets:
+
+```
+DOMAIN=virt.example.com
+IDENTITY=kanidm
+ADMIN_USER=alice
+ADMIN_DISPLAY=Alice Martin
+ADMIN_EMAIL=alice@example.com
+```
+
+- One KEY=value per line, split at the first `=`, the value verbatim: no quotes, escapes or comments.
+- `IDENTITY=none` and no `ADMIN_` lines for token sign-in; an empty `DOMAIN`, or no file, means by address.
+- `ADMIN_DISPLAY` is left out when empty.
+- UTF-8; every line ends in LF, the last one too.
+- A worker gets no file.
+- Display names refuse quotes, `\`, `$` and backticks, so a shell or a unit reads the same value.
+- The image ships no file there, so an update never merges over it; it checks the file at every start.
 
 ## Trust
 
@@ -315,7 +365,10 @@ report: {address: 10.20.120.11, token: ...}   # the first machine; the token is 
 defaults:
   purpose: storage                 # an id from the media; optional with one purpose
   keyboard: fr
-  network: {interface: eno1, vlan: 110, gateway: 10.20.120.1, dns: [10.20.0.53]}
+  network: {interface: eno1, vlan: 110, gateway: 10.20.120.1, dns: [10.20.0.53], ntp: [10.20.0.53]}
+  domain: virt.example.com         # for an image that serves names; empty: by address
+  identity: kanidm                 # its sign-in provider, or none for a token
+  admin: {user: alice, display: Alice Martin, email: alice@example.com}
   disks: {system: auto, data: auto, erase: blank}
   ssh_authorized_keys: ["ssh-ed25519 AAAA... admin@lab"]   # for root
   profile: worker                  # join the first machine's cluster; controller is the default
@@ -341,7 +394,8 @@ machines:
 - Every install writes one for its own machine, shared settings under defaults.
 - `ssh_authorized_keys` go to root through bootc; the wizard has no screen for them.
 - A worker needs `report`; the first machine cannot be one.
-- Planned: an admin password hash, NTP.
+- `domain`, `identity` and `admin` answer Names and sign-in; an image that serves no names refuses them.
+- Planned: an admin password hash.
 
 ## Testing
 
@@ -358,6 +412,7 @@ machines:
 - `test/vm/settings.sh VM PORT`: over SSH to an installed console, a root password and a new address; the machine restarts on it, MicroShift and the UI follow, the password logs in, and F2 opens the settings on tty1. `ptydrive.py` drives the SSH session.
 - `test/vm/purpose.sh VM PORT`: media with MicroShift beside Storage; a site file picks MicroShift; the distro builds the data disks into its default Pool. Until the distro's branch installer/purpose builds, `purpose.Containerfile` adds its unit and labels to the published image.
 - `test/vm/virt.sh VM PORT`: the Virtualization image installed unattended with no registry in reach; KubeVirt, CDI and dotvirt come up from embedded images; the console answers HTTPS on the machine's address with the certificate its screen shows; a token signs the first admin in.
+- `PAYLOAD=msi-names-payload.iso test/vm/media.sh localhost/microshift:names`, then `test/vm/names.sh VM PORT`: an image labeled as the dotvirt appliance is (`names.Containerfile`); a site file gives it a domain, Kanidm and its first admin, and a time server; the test network's DNS points `*.virt.test` at the machine but `idm.virt.test` elsewhere. The installed system must hold the settings file byte for byte, chrony on the site's server, and in its log what DNS said; F2 must show the domain and sign-in, and a LoadBalancer Service must follow the machine to a new address.
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
