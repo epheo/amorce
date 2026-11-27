@@ -67,6 +67,9 @@ jobs:
             --certificate-oidc-issuer https://token.actions.githubusercontent.com "$ref" >/dev/null
           # latest last, as the very digest signed: never an unsigned or
           # re-encoded image under it.
-          skopeo copy --preserve-digests "docker://$ref" "docker://$IMAGE:latest"
-          [ "$(skopeo inspect --format '{{.Digest}}' "docker://$IMAGE:latest")" = "$(cat "$RUNNER_TEMP/digest")" ]
+          # cosign's login, named outright: skopeo stops at the unreadable
+          # auth file root podman left under /run/user instead of falling back.
+          skopeo copy --preserve-digests --authfile "$HOME/.docker/config.json" \
+            "docker://$ref" "docker://$IMAGE:latest"
+          [ "$(skopeo inspect --authfile "$HOME/.docker/config.json" --format '{{.Digest}}' "docker://$IMAGE:latest")" = "$(cat "$RUNNER_TEMP/digest")" ]
           echo "$ref, signed by $GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF, is latest" >> "$GITHUB_STEP_SUMMARY"
