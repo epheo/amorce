@@ -45,7 +45,7 @@ podman run --rm -v $PWD/out:/out:Z localhost/amorce:dev iso --out /out/amorce.is
 
 ## Purposes
 
-- MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels on the distro's branch installer/purpose.
+- MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels since epheo.48.
 - Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication. Labels on stornas's branch installer-plan.
 - Virtualization: the dotvirt appliance; KubeVirt, CDI, Argo CD, dotvirt, a git forge, Kanidm if chosen; it needs a domain.
 - Planned: every appliance image lives in this repo, under `appliances/`: the dotvirt appliance (written by dotvirt's maintainers) and stornas-os, which moves here from stornas.
@@ -304,7 +304,7 @@ ADMIN_EMAIL=alice@example.com
 ## Secure Boot
 
 - The distro builds the DRBD module; Secure Boot refuses it unless it is signed by a key the kernel trusts.
-- The distro signs it in CI with the project key, and ships the certificate as `/usr/lib/amorce/mok.der` (branch kmod/sign-drbd, waiting for the key).
+- The distro signs it in CI with the project key, and ships the certificate as `/usr/lib/amorce/mok.der`, since epheo.47.
 - When the image ships that certificate and Secure Boot is on, the installer queues it with `mokutil --import` and shows the one-time password on Ready.
 - An unattended install puts that password on the first machine's board: a person answers MokManager once, at the machine's screen.
 - The kernel trusts an enrolled key for modules only in its `.machine` keyring: a CA certificate that signs certificates and nothing else.
@@ -445,7 +445,7 @@ Designed during implementation, not in the mockups:
 1. Single machine, attended, one system disk; LLDP and gateway probe; styled and normal console; serial e2e. Done, in VMs.
 2. Site file, unattended installs, reporting to the first machine's installed console: done, in VMs.
 3. Join: workers from the site file and by words, discovery: done, in VMs.
-4. Secure Boot enrollment: done, in VMs with a test key; the distro's signing waits for the project key.
+4. Secure Boot enrollment: done, in VMs with a test key; the distro signs with the project key since epheo.47.
 5. Installed console: the screen, the board, settings (F2), and SSH through Wish: done, in VMs.
 
 ## Dependencies
@@ -453,8 +453,8 @@ Designed during implementation, not in the mockups:
 - Join words: the EFF short word list 2.0 (Electronic Frontier Foundation, CC BY 3.0 US).
 
 - stornas: the install-plan branch, and the labels in its image.
-- distro: the installed console lines above, once this repo publishes its image; branch installer/purpose (labels, the data disks unit); branch kmod/sign-drbd and its KMOD_SIGNING_KEY secret.
-- dotvirt: branches operator/hostless-gateway and image/virtualization; portail: branch gateway/fixed-nodeport, then a release the distro embeds.
+- distro: the installed console lines above, once this repo publishes its image; its paths renamed to amorce.
+- dotvirt: the appliance under `appliances/dotvirt/`, and its published image.
 - Registry credentials for updates after an offline install.
 
 ## Open questions
