@@ -1,0 +1,72 @@
+# The installer's own image: the live system its ISO boots, the tool that
+# writes ISOs (amorce iso), and what the distro copies the installed console
+# from. Pull requests build it; main publishes it, signed.
+name: installer
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["appliances/**"]
+  pull_request:
+    paths-ignore: ["appliances/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/epheo/amorce
+  # dotvirt's proven version: containers/image, so bootc and CRI-O, reads
+  # only the legacy .sig tag with a Rekor v1 SET.
+  COSIGN_VERSION: v3.1.4
+  COSIGN_SHA256: 424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    concurrency:
+      group: installer-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Root, as the distro's CI builds bootc images.
+      - name: build
+        run: |
+          sudo podman build -t "$IMAGE:$GITHUB_SHA" \
+            --label org.opencontainers.image.source=https://github.com/epheo/amorce \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" .
+      - name: what the distro copies is there
+        run: |
+          sudo podman run --rm --entrypoint sh "$IMAGE:$GITHUB_SHA" -c \
+            'test -x /usr/bin/amorce && test -f /usr/share/amorce/dist/amorce-console.service && test -f /usr/share/amorce/dist/amorce.xml'
+      - name: publish, signed
+        if: github.ref == 'refs/heads/main'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/bin/cosign" \
+            "https://github.com/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-amd64"
+          echo "$COSIGN_SHA256  $RUNNER_TEMP/bin/cosign" | sha256sum -c --quiet -
+          chmod 755 "$RUNNER_TEMP/bin/cosign"
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          echo "$TOKEN" | sudo podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          echo "$TOKEN" | cosign login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          sudo podman push --digestfile "$RUNNER_TEMP/digest" "$IMAGE:$GITHUB_SHA"
+          ref="$IMAGE@$(cat "$RUNNER_TEMP/digest")"
+          # The legacy layout: containers/image, so bootc and CRI-O, reads
+          # only that one.
+          cosign sign --yes --recursive --use-signing-config=false --new-bundle-format=false "$ref"
+          cosign verify --new-bundle-format=false \
+            --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$ref" >/dev/null
+          # latest last, as the very digest signed: never an unsigned or
+          # re-encoded image under it.
+          skopeo copy --preserve-digests "docker://$ref" "docker://$IMAGE:latest"
+          [ "$(skopeo inspect --format '{{.Digest}}' "docker://$IMAGE:latest")" = "$(cat "$RUNNER_TEMP/digest")" ]
+          echo "$ref, signed by $GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF, is latest" >> "$GITHUB_STEP_SUMMARY"

@@ -34,6 +34,13 @@ podman run --rm -v $PWD/out:/out:Z localhost/amorce:dev iso --out /out/amorce.is
 
 - Every image goes in one OCI layout on the media, so layers they share are stored once.
 - Images built from the same distro build share almost all of it.
+- `ghcr.io/epheo/amorce` is this image as main builds it, signed keyless; it can stand in for `localhost/amorce:dev` above. Check it with:
+
+```
+cosign verify --new-bundle-format=false \
+  --certificate-identity https://github.com/epheo/amorce/.github/workflows/installer.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/epheo/amorce:latest
+```
 
 ## Goal
 
