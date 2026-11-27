@@ -288,6 +288,7 @@ ADMIN_EMAIL=alice@example.com
 - `ADMIN_DISPLAY` is left out when empty.
 - UTF-8; every line ends in LF, the last one too.
 - A worker gets no file.
+- A new key only comes with a label the image sets: an image may refuse keys it does not know.
 - Display names refuse quotes, `\`, `$` and backticks, so a shell or a unit reads the same value.
 - The image ships no file there, so an update never merges over it; it checks the file at every start.
 
