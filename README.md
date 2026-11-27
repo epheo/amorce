@@ -46,9 +46,9 @@ podman run --rm -v $PWD/out:/out:Z localhost/amorce:dev iso --out /out/amorce.is
 ## Purposes
 
 - MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels since epheo.48.
-- Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication. Labels on stornas's branch installer-plan.
+- Storage: stornas-os, built here from `appliances/stornas/` (ghcr.io/epheo/stornas-os); shares, iSCSI, replication.
 - Virtualization: the dotvirt appliance; KubeVirt, CDI, Argo CD, dotvirt, a git forge, Kanidm if chosen; it needs a domain.
-- Planned: every appliance image lives in this repo, under `appliances/`: the dotvirt appliance (written by dotvirt's maintainers) and stornas-os, which moves here from stornas.
+- Every appliance image lives in this repo, under `appliances/`: stornas-os, and the dotvirt appliance (written by dotvirt's maintainers).
 - Each image describes itself in labels; the installer hard-codes no purpose.
 - Each purpose works without the installer: the installer only feeds its own mechanisms (the distro's below).
 - An image without labels can be described by `iso` flags (`--name`, `--summary`, `--data-disks`...).
@@ -243,7 +243,7 @@ Plan file, `/etc/amorce/data-disks.json`:
 
 - `layout` is the image's `data-disks`: each purpose builds only its own layout, so an image switched to another never takes disks in use.
 
-- stornas (branch installer-plan): the agent reports the file in its NodeInventory; the operator creates those StoragePools once and marks the inventory.
+- stornas: the agent reports the file in its NodeInventory; the operator creates those StoragePools once, under cluster-wide names and in tier default, and marks the inventory.
 - A pool the user deletes later is never recreated.
 
 ## Names and sign-in
@@ -457,7 +457,7 @@ Designed during implementation, not in the mockups:
 
 - Join words: the EFF short word list 2.0 (Electronic Frontier Foundation, CC BY 3.0 US).
 
-- stornas: the install-plan branch, and the labels in its image.
+- stornas: component images published per main commit, which `appliances/stornas/versions.env` pins.
 - distro: the installed console lines above, once this repo publishes its image; its paths renamed to amorce.
 - dotvirt: the appliance under `appliances/dotvirt/`, and its published image.
 - Registry credentials for updates after an offline install.
