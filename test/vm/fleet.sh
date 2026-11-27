@@ -27,7 +27,7 @@ boot() { # vm port serial
   kill "$(cat "$STATE/$1/bridge.pid" 2>/dev/null)" 2>/dev/null || true
   "$v" destroy "$1"
   "$v" create "$1" "$2" off --sysinfo "smbios,system.serial=$3" \
-    --disk vol=default/msi-site.iso,device=cdrom,bus=sata \
+    --disk vol=default/msi-fleet-site.iso,device=cdrom,bus=sata \
     --xml "./devices/interface/source/@network=msi-flat"
   mkdir -p "$STATE/$1" && : > "$STATE/$1/serial.log" && rm -f "$STATE/$1/screen.txt"
   "$v" bridge "$1" "$2" 100 30
@@ -55,7 +55,7 @@ machines:
     address: 10.99.0.23/24
 EOF
 podman run --rm -v "$work/site:/site:Z" "$image" iso --payload-only --site /site/site.yaml --out /site/site.iso >/dev/null
-"$v" upload msi-site.iso "$work/site/site.iso"
+"$v" upload msi-fleet-site.iso "$work/site/site.iso"
 "$v" flatnet
 
 step "first machine"
