@@ -1,17 +1,19 @@
 #!/bin/bash
-# mok.sh VM PORT: Secure Boot on, and an image whose DRBD modules are signed
-# (PAYLOAD media from KMOD_KEY=... media.sh). A site file answers the
-# wizard; the install queues the image's key; the test answers MokManager
-# over the serial console with the password Ready shows. The installed
-# system must then trust the key, load DRBD under lockdown, and serve its UI.
+# mok.sh VM PORT: Secure Boot on, and the distro's published image, whose DRBD
+# modules CI signs with the project key (PAYLOAD=msi-mok.iso media.sh
+# ghcr.io/epheo/microshift:latest). A site file answers the wizard; the
+# install queues the image's key; the test answers MokManager over the
+# serial console with the password Ready shows. The installed system must
+# then trust that key, and load DRBD signed by it under lockdown.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 v="$here/vm.sh"
 work="$STATE/$vm"
 log="$work/serial.log"
 addr=10.99.0.41
+export PAYLOAD=msi-mok-payload.iso
 screen() { "$v" screen "$vm"; }
 wait_for() { # pattern seconds
   for _ in $(seq 1 "$2"); do grep -q -E "$1" "$work/screen.txt" 2>/dev/null && return 0; sleep 1; done
@@ -27,7 +29,7 @@ ssh-keygen -q -t ed25519 -N '' -C mok-test -f "$work/id"
 cat > "$work/site/site.yaml" <<EOF
 site: mok
 defaults:
-  purpose: storage
+  purpose: microshift
   disks: {data: auto}
   ssh_authorized_keys: ["$(cat "$work/id.pub")"]
 machines:
@@ -83,17 +85,12 @@ for _ in $(seq 1 120); do on true 2>/dev/null && break; sleep 5; done
 on 'set -e
   dmesg | grep -i -E "secure ?boot.*enabled"
   cat /sys/kernel/security/lockdown
-  dmesg | grep "Loaded X.509 cert .microshift-installer test module key"
+  cn=$(openssl x509 -inform der -in /usr/lib/amorce/mok.der -noout -subject -nameopt multiline | sed -n "s/^ *commonName *= //p")
+  echo "the image key: $cn"
+  dmesg | grep -F "Loaded X.509 cert '"'"'$cn"
   for _ in $(seq 1 60); do lsmod | grep -q "^drbd " && break; sleep 5; done
   lsmod | grep "^drbd "
   echo "drbd signer: $(modinfo -F signer drbd)"
+  test "$(modinfo -F signer drbd)" = "$cn"
   ! dmesg | grep -i -E "key was rejected|module verification failed"'
-url=https://$addr:30080
-for _ in $(seq 1 120); do
-  code=$(curl -sk -m 10 -o /dev/null -w '%{http_code}' "$url/" || true)
-  [ "$code" = 200 ] && break
-  sleep 5
-done
-echo "$url answers $code"
-[ "$code" = 200 ]
 echo PASS

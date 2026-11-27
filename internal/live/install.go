@@ -23,10 +23,10 @@ import (
 
 // PlanPath is where the data disk plan lands in the installed /etc; the
 // purpose reads it once at its first start.
-const PlanPath = "etc/microshift-installer/data-disks.json"
+const PlanPath = "etc/amorce/data-disks.json"
 
 // SitePath keeps this machine's answers, to install more machines alike.
-const SitePath = "etc/microshift-installer/" + site.FileName
+const SitePath = "etc/amorce/" + site.FileName
 
 const target = "/run/install/target"
 
@@ -137,7 +137,7 @@ func (s *System) Install(ctx context.Context, req engine.InstallRequest, ev func
 		if req.Purpose.NeedsSecureBootOff {
 			return req.Purpose.Name + " needs Secure Boot off", nil
 		}
-		cert := filepath.Join(deploy, "usr/lib/microshift-installer/mok.der")
+		cert := filepath.Join(deploy, "usr/lib/amorce/mok.der")
 		if _, err := os.Stat(cert); err != nil {
 			return "the image needs no key", nil
 		}
@@ -306,7 +306,7 @@ func (s *System) keepLog(deploy string) {
 		return
 	}
 	// The stateroot's var is the installed /var.
-	dst := filepath.Join(deploy, "../../var/log/microshift-installer.log")
+	dst := filepath.Join(deploy, "../../var/log/amorce.log")
 	if err := os.WriteFile(dst, b, 0o600); err == nil {
 		// Outside the deployment, so setfiles cannot map it: label it directly.
 		unix.Setxattr(dst, "security.selinux", []byte("system_u:object_r:var_log_t:s0\x00"), 0)
@@ -359,8 +359,8 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 	if req.Profile == site.Worker {
 		// The console joins the worker; without it MicroShift would stay
 		// masked for good.
-		if _, err := os.Stat(filepath.Join(deploy, "usr/lib/systemd/system/installer-console.service")); err != nil {
-			return fmt.Errorf("this image has no installer console, which joins workers: install it as a controller, " +
+		if _, err := os.Stat(filepath.Join(deploy, "usr/lib/systemd/system/amorce-console.service")); err != nil {
+			return fmt.Errorf("this image has no amorce console, which joins workers: install it as a controller, " +
 				"then join it by hand (microshift-profile worker, microshift add-node --worker)")
 		}
 		// Started before the join, MicroShift would make this machine a

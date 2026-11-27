@@ -10,7 +10,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 py=${PY:-python3}
 v="$here/vm.sh"
 work="$STATE/$vm"
@@ -72,12 +72,12 @@ on "$old" 'set -e
   printf "DOMAIN=virt.test\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_DISPLAY=Alice Martin\nADMIN_EMAIL=alice@virt.test\n" |
     cmp - /etc/dotvirt/appliance.env
   ls -Z /etc/dotvirt/appliance.env | grep -q ":etc_t:"
-  grep -qx "sourcedir /etc/microshift-installer/chrony" /etc/chrony.conf
+  grep -qx "sourcedir /etc/amorce/chrony" /etc/chrony.conf
   ! grep -q "^pool " /etc/chrony.conf
   chronyc -n sources | grep 10.99.3.1
-  grep -E "dns [a-z]+\.virt\.test" /var/log/microshift-installer.log
-  grep -q "dns console.virt.test: \[10.99.3.71\]" /var/log/microshift-installer.log
-  grep -q "dns idm.virt.test: \[10.99.3.99\]" /var/log/microshift-installer.log'
+  grep -E "dns [a-z]+\.virt\.test" /var/log/amorce.log
+  grep -q "dns console.virt.test: \[10.99.3.71\]" /var/log/amorce.log
+  grep -q "dns idm.virt.test: \[10.99.3.99\]" /var/log/amorce.log'
 
 step "a LoadBalancer Service gets the node IP"
 for _ in $(seq 1 120); do on "$old" "$kc get --raw /readyz" 2>/dev/null | grep -q ok && break; sleep 5; done

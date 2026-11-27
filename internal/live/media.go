@@ -16,10 +16,10 @@ import (
 const liveRoot = "/run/initramfs/live"
 
 // mediaRoots finds every medium with images: the boot media, and any other
-// medium labeled MSPAYLOAD*, which keeps images apart from the installer.
+// medium labeled AMORCE-*, which keeps images apart from the installer.
 func (s *System) mediaRoots(ctx context.Context) []string {
 	roots := []string{liveRoot}
-	labels, _ := filepath.Glob("/dev/disk/by-label/MSPAYLOAD*")
+	labels, _ := filepath.Glob("/dev/disk/by-label/AMORCE-*")
 	for _, l := range labels {
 		mnt := filepath.Join("/run/install/media", filepath.Base(l))
 		if _, err := os.Stat(filepath.Join(mnt, media.IndexPath)); err != nil {

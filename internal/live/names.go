@@ -41,7 +41,7 @@ func ntpAnswers(ctx context.Context, server string) bool {
 }
 
 // NTPDir holds the installer's time servers; chrony reads it as a sourcedir.
-const NTPDir = "etc/microshift-installer/chrony"
+const NTPDir = "etc/amorce/chrony"
 
 // NTPSources lists the time servers in chrony's sources format.
 func NTPSources(servers []string) string {

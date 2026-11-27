@@ -1,4 +1,4 @@
-// Command installer is the install media's wizard and its tools.
+// Command amorce is the install media's wizard and its tools.
 package main
 
 import (
@@ -21,13 +21,13 @@ import (
 )
 
 const usage = `usage:
-  installer run [--tty DEV]...      the wizard on the given consoles (install media)
-  installer demo [--look L] [--home] the wizard on a fake machine, or its installed console
-  installer screens DIR [W H]       render every demo screen to DIR
-  installer iso [flags]             write install media (see installer iso -h)
-  installer font DIR                write the console fonts
-  installer console [--tty DEV]...  the installed system's console (default /dev/tty1)
-  installer machines [--site FILE]  the site's board, as JSON, from its first machine
+  amorce run [--tty DEV]...      the wizard on the given consoles (install media)
+  amorce demo [--look L] [--home] the wizard on a fake machine, or its installed console
+  amorce screens DIR [W H]       render every demo screen to DIR
+  amorce iso [flags]             write install media (see amorce iso -h)
+  amorce font DIR                write the console fonts
+  amorce console [--tty DEV]...  the installed system's console (default /dev/tty1)
+  amorce machines [--site FILE]  the site's board, as JSON, from its first machine
 `
 
 func main() {

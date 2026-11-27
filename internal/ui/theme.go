@@ -1,4 +1,4 @@
-// Package ui draws the installer screens for one terminal.
+// Package ui draws the amorce screens for one terminal.
 package ui
 
 import (

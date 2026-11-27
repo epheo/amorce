@@ -7,7 +7,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 v="$here/vm.sh"
 work="$STATE/$vm"
 log="$work/serial.log"
@@ -52,8 +52,8 @@ for _ in $(seq 1 120); do
   sleep 5
 done
 on "set -e
-  jq -c '{layout, pools: [.pools[] | {name, tier, n: (.devices | length)}]}' /etc/microshift-installer/data-disks.json
-  test \"\$(jq -r .layout /etc/microshift-installer/data-disks.json)\" = thin
+  jq -c '{layout, pools: [.pools[] | {name, tier, n: (.devices | length)}]}' /etc/amorce/data-disks.json
+  test \"\$(jq -r .layout /etc/amorce/data-disks.json)\" = thin
   systemctl is-active -q microshift-r-drbd-data-disks
   vgs --noheadings -o vg_name,pv_count,vg_size myvg1
   test \"\$(vgs --noheadings -o pv_count myvg1 | tr -d ' ')\" = 5

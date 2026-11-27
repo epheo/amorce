@@ -182,7 +182,7 @@ func (fm *first) join(w http.ResponseWriter, r *http.Request, logf func(string))
 
 // hostsTag marks the /etc/hosts lines the console keeps: the apiserver
 // reaches kubelets by node name, and a site may have no DNS.
-const hostsTag = "# microshift-installer worker"
+const hostsTag = "# amorce worker"
 
 func addHost(path, addr, name string) error {
 	b, err := os.ReadFile(path)

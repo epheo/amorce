@@ -25,7 +25,7 @@ import (
 )
 
 // fontDir holds the console fonts the image ships, by height.
-const fontDir = "/usr/share/microshift-installer"
+const fontDir = "/usr/share/amorce"
 
 type ttyList []string
 

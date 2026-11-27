@@ -61,6 +61,19 @@ XML
   virsh -q net-start msi-names
 }
 
+virtnet() { # flat, and its DNS points *.virt.test at 10.99.4.71, as a site's wildcard does
+  virsh -q net-info msi-virt >/dev/null 2>&1 && return
+  virsh -q net-define /dev/stdin <<'XML'
+<network xmlns:dnsmasq="http://libvirt.org/schemas/network/dnsmasq/1.0">
+  <name>msi-virt</name><ip address="10.99.4.1" prefix="24"/>
+  <dnsmasq:options>
+    <dnsmasq:option value="address=/virt.test/10.99.4.71"/>
+  </dnsmasq:options>
+</network>
+XML
+  virsh -q net-start msi-virt
+}
+
 destroy() { # name
   virsh -q destroy "$1" 2>/dev/null || true
   virsh -q undefine "$1" --nvram 2>/dev/null || true

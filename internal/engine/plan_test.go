@@ -113,3 +113,15 @@ func TestUnstableDiskNeverHoldsData(t *testing.T) {
 		t.Fatalf("by hand: %+v", r)
 	}
 }
+
+// Twin SSDs listed in either order give the same system disk: the kernel
+// may name them the other way round at the next start.
+func TestSystemDiskSameAtEveryStart(t *testing.T) {
+	m := machine()
+	m.Disks[0].Path, m.Disks[1].Path = "/dev/disk/by-id/ata-SSD0002", "/dev/disk/by-id/ata-SSD0001"
+	first := ProposePlan(m, Purpose{DataDisks: DataThin}).System
+	slices.Reverse(m.Disks)
+	if again := ProposePlan(m, Purpose{DataDisks: DataThin}).System; first != "nvme1n1" || again != first {
+		t.Fatalf("system %q, then %q; want nvme1n1, the disk named SSD0001", first, again)
+	}
+}
