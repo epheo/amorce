@@ -1,11 +1,11 @@
 #!/bin/bash
 # build.sh [TAG]: the dotvirt appliance, with the pins of versions.env; any of
-# them set in the environment wins. local/ holds what the build takes from
+# them set non-empty in the environment wins. local/ holds what the build takes from
 # here rather than a registry: operator.yaml, and images built here, as
 # archives with a line "<archive> <ref>" each in local/images.
 set -euo pipefail
 cd "$(dirname "$0")"
-eval "$(sed -n 's/^\([A-Z][A-Z0-9_]*\)=\(.*\)$/: "${\1=\2}"/p' versions.env)"
+eval "$(sed -n 's/^\([A-Z][A-Z0-9_]*\)=\(.*\)$/: "${\1:=\2}"/p' versions.env)"
 mkdir -p local
 if [ -n "${DOTVIRT_OPERATOR_YAML:-}" ]; then
     cp "$DOTVIRT_OPERATOR_YAML" local/operator.yaml
