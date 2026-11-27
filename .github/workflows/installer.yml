@@ -1,6 +1,7 @@
-# The installer's own image: the live system its ISO boots, the tool that
-# writes ISOs (amorce iso), and what the distro copies the installed console
-# from. Pull requests build it; main publishes it, signed.
+# The installer's own images: amorce, the live system its ISO boots and the
+# tool that writes ISOs (amorce iso); amorce-console, the installed console's
+# files alone, which the distro copies. Pull requests build them; main
+# publishes them, signed.
 name: installer
 
 on:
@@ -16,6 +17,7 @@ permissions:
 
 env:
   IMAGE: ghcr.io/epheo/amorce
+  CONSOLE: ghcr.io/epheo/amorce-console
   # dotvirt's proven version: containers/image, so bootc and CRI-O, reads
   # only the legacy .sig tag with a Rekor v1 SET.
   COSIGN_VERSION: v3.1.4
@@ -37,13 +39,18 @@ jobs:
       # Root, as the distro's CI builds bootc images.
       - name: build
         run: |
-          sudo podman build -t "$IMAGE:$GITHUB_SHA" \
-            --label org.opencontainers.image.source=https://github.com/epheo/amorce \
-            --label org.opencontainers.image.revision="$GITHUB_SHA" .
+          labels=(--label org.opencontainers.image.source=https://github.com/epheo/amorce
+            --label org.opencontainers.image.revision="$GITHUB_SHA")
+          sudo podman build "${labels[@]}" --target console -t "$CONSOLE:$GITHUB_SHA" .
+          sudo podman build "${labels[@]}" -t "$IMAGE:$GITHUB_SHA" .
       - name: what the distro copies is there
         run: |
-          sudo podman run --rm --entrypoint sh "$IMAGE:$GITHUB_SHA" -c \
-            'test -x /usr/bin/amorce && test -f /usr/share/amorce/dist/amorce-console.service && test -f /usr/share/amorce/dist/amorce.xml'
+          sudo podman create --name console "$CONSOLE:$GITHUB_SHA" /none >/dev/null
+          sudo podman export console | tar -t > "$RUNNER_TEMP/console-files"
+          for f in usr/bin/amorce usr/share/amorce/dist/amorce-console.service usr/share/amorce/dist/amorce.xml \
+            usr/share/amorce/console-16.psf usr/share/amorce/console-32.psf; do
+            grep -qx "$f" "$RUNNER_TEMP/console-files" || { echo "$CONSOLE lacks $f"; exit 1; }
+          done
       - name: publish, signed
         if: github.ref == 'refs/heads/main'
         env:
@@ -57,19 +64,24 @@ jobs:
           export PATH="$RUNNER_TEMP/bin:$PATH"
           echo "$TOKEN" | sudo podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           echo "$TOKEN" | cosign login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          sudo podman push --digestfile "$RUNNER_TEMP/digest" "$IMAGE:$GITHUB_SHA"
-          ref="$IMAGE@$(cat "$RUNNER_TEMP/digest")"
-          # The legacy layout: containers/image, so bootc and CRI-O, reads
-          # only that one.
-          cosign sign --yes --recursive --use-signing-config=false --new-bundle-format=false "$ref"
-          cosign verify --new-bundle-format=false \
-            --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$ref" >/dev/null
-          # latest last, as the very digest signed: never an unsigned or
-          # re-encoded image under it.
           # cosign's login, named outright: skopeo stops at the unreadable
           # auth file root podman left under /run/user instead of falling back.
-          skopeo copy --preserve-digests --authfile "$HOME/.docker/config.json" \
-            "docker://$ref" "docker://$IMAGE:latest"
-          [ "$(skopeo inspect --authfile "$HOME/.docker/config.json" --format '{{.Digest}}' "docker://$IMAGE:latest")" = "$(cat "$RUNNER_TEMP/digest")" ]
-          echo "$ref, signed by $GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF, is latest" >> "$GITHUB_STEP_SUMMARY"
+          auth=(--authfile "$HOME/.docker/config.json")
+          publish() { # publish <image>: :<sha> by digest, signed, verified, then latest
+            local digest="$RUNNER_TEMP/${1##*/}.digest" ref
+            sudo podman push --digestfile "$digest" "$1:$GITHUB_SHA"
+            ref="$1@$(cat "$digest")"
+            # The legacy layout: containers/image, so bootc and CRI-O, reads
+            # only that one.
+            cosign sign --yes --recursive --use-signing-config=false --new-bundle-format=false "$ref"
+            cosign verify --new-bundle-format=false \
+              --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com "$ref" >/dev/null
+            # latest last, as the very digest signed: never an unsigned or
+            # re-encoded image under it.
+            skopeo copy --preserve-digests "${auth[@]}" "docker://$ref" "docker://$1:latest"
+            [ "$(skopeo inspect "${auth[@]}" --format '{{.Digest}}' "docker://$1:latest")" = "$(cat "$digest")" ]
+            echo "$ref, signed by $GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF, is latest" >> "$GITHUB_STEP_SUMMARY"
+          }
+          publish "$CONSOLE"
+          publish "$IMAGE"
