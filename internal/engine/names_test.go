@@ -36,7 +36,8 @@ func TestCheckAdmin(t *testing.T) {
 		}
 	}
 	for e, ok := range map[string]bool{"alice@example.com": true, "a.b+c@lab.example.org": true, "": false,
-		"alice": false, "a@b": false, "a@@b.com": false, "a b@c.com": false, "zoë@example.com": false, "a'b@c.com": false} {
+		"alice": false, "a@b": false, "a@@b.com": false, "a b@c.com": false, "zoë@example.com": false, "a'b@c.com": false,
+		"Alice@Example.COM": true, "a@\u212aexample.com": false, "a@exämple.com": false} {
 		if got := CheckEmail(e) == ""; got != ok {
 			t.Errorf("CheckEmail(%q) ok = %v, want %v", e, got, ok)
 		}
