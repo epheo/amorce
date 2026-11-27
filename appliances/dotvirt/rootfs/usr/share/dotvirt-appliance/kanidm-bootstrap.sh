@@ -12,9 +12,9 @@ missing() { "$@" | grep -q '^No matching'; }
 # when the domain is created, so removing it holds across upgrades.
 kanidm group remove-members idm_people_self_name_write idm_all_persons
 
-# Its members are cluster-admin: only idm_admins may change them.
+# Its members are cluster-admin: only idm_admins may change them. Once in
+# idm_high_privilege, its entry manager is no longer idm_admin's to set.
 missing kanidm group get dotvirt_admins && kanidm group create dotvirt_admins idm_admins
-kanidm group set-entry-manager dotvirt_admins idm_admins
 
 # client NAME TITLE ORIGIN REDIRECT: confidential, so it may skip the
 # consent screen. Every person may sign in; RBAC and the forge decide what
@@ -30,9 +30,12 @@ client dotvirt "dotvirt console" "https://console.$DOMAIN/" "https://console.$DO
 # SSO: the forge's default name for its issuer, in its callback path.
 client git "Git forge" "https://git.$DOMAIN/" "https://git.$DOMAIN/user/oauth2/SSO/callback"
 
-missing kanidm person get "$ADMIN_USER" && kanidm person create "$ADMIN_USER" "$ADMIN_DISPLAY"
-kanidm person update "$ADMIN_USER" --mail "$ADMIN_EMAIL"
-kanidm group add-members dotvirt_admins "$ADMIN_USER"
+# Only at the first run: later, Kanidm's admins own the first admin too.
+if [ -n "$FIRST" ]; then
+    missing kanidm person get "$ADMIN_USER" && kanidm person create "$ADMIN_USER" "$ADMIN_DISPLAY"
+    kanidm person update "$ADMIN_USER" --mail "$ADMIN_EMAIL"
+    kanidm group add-members dotvirt_admins "$ADMIN_USER"
+fi
 if [ -n "$INVITE" ]; then
     token=$(kanidm person credential create-reset-token "$ADMIN_USER")
     echo "link $(printf '%s\n' "$token" | grep -o 'https://[^ ]*reset?token=[^ ]*' | head -1)" >&3

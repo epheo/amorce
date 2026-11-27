@@ -15,9 +15,11 @@ RUN OUT=/out PORTAIL_IMAGE="${PORTAIL_IMAGE}" KANIDM_SERVER_IMAGE="${KANIDM_SERV
     DOTVIRT_IMAGE="${DOTVIRT_IMAGE}" /src/render.sh
 
 FROM ${BASE_IMAGE}
-# Kanidm's built-in accounts, and the names Forgejo refuses that the admin
-# name's rule allows: the installer and setup both refuse them.
-ARG RESERVED_USERS="admin;anonymous;api;assets;attachments;avatar;avatars;captcha;login;metrics;org;v2"
+# Names the first admin cannot take, which the installer and setup both
+# refuse: Kanidm's built-in accounts and the name it refuses (root), its
+# clients here (dotvirt, git; dotvirt is also the forge's org), and the
+# names Forgejo 17 reserves that the admin name's rule allows.
+ARG RESERVED_USERS="actor;admin;anonymous;api;assets;attachments;avatar;avatars;captcha;dotvirt;explore;ghost;git;invite;issues;login;metrics;milestones;notifications;org;pulls;repo;root;user;v2"
 COPY --from=render /out/images /tmp/dotvirt/images
 COPY local /tmp/dotvirt/local
 COPY embed.sh /tmp/dotvirt/embed.sh

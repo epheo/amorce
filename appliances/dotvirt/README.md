@@ -29,9 +29,10 @@ The appliance needs a domain; the site's DNS points these names at the machine:
 
 ## Certificates
 
-- A machine CA, made at the first start, signs every certificate. It may sign only names under the domain (a name constraint).
+- A machine CA, made at the first start, signs every certificate. It may sign only `console.`, `git.` and `idm.<domain>`, and no address (name constraints), so a domain that is a company's own stays safe.
 - Trust it once in each browser; passkeys need it. The screen gives its SHA-256, and `dotvirt-appliance ca` prints it.
-- Its certificates last 397 days; a daily timer renews those within 30 days of their end.
+- Its certificates last 397 days; a daily timer renews those within 30 days of their end, and hands the cluster the current ones every day.
+- The CA lasts 10 years and is never made again.
 
 ## Sign-in
 
@@ -43,6 +44,9 @@ The installer writes `/etc/dotvirt/appliance.env` (its README, Names and sign-in
 - Kubernetes names them `idm:<name>`, their groups `idm:<group>`; `idm:dotvirt_admins` is cluster-admin.
 - The forge signs them in through Kanidm too; `dotvirt_admins` are its administrators.
 - The first admin is in `dotvirt_admins`. The screen shows an invite link to set a passkey or a password.
+- The first admin is made once. Later, Kanidm's admins own them like anyone: a removal from `dotvirt_admins` holds.
+- `dotvirt_admins` is in `idm_high_privilege`: Kanidm's service desk and group admins cannot reset or edit its members.
+- Names the first admin cannot take: Kanidm's own accounts, `root`, `dotvirt`, `git`, and the names the forge reserves (the image's `reserved-users` label).
 - The link lasts an hour, and only its last opening counts. `dotvirt-appliance invite` makes a new one.
 - Everyone else: add them in Kanidm, then grant them RBAC; every person may sign in, and sees what RBAC grants.
 
@@ -58,7 +62,7 @@ The domain and the sign-in are set at install: passkeys, accounts and certificat
 - `dotvirt-appliance-setup.service`, before MicroShift: certificates, the units naming the domain in `/etc/microshift/manifests.d/dotvirt-*`, the apiserver's trust, the screen.
 - `dotvirt-appliance-identity.service`, with Kanidm, after MicroShift: Kanidm's clients and their secrets, `dotvirt_admins`, the first admin.
 - `dotvirt-appliance-renew.timer`: certificates near their end.
-- State in `/var/lib/dotvirt-appliance`: the CA and its certificates.
+- State in `/var/lib/dotvirt-appliance`: the CA and its certificates, the domain and sign-in of the first start, and the first admin's name.
 
 ## Building
 

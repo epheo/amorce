@@ -10,15 +10,19 @@ set -euo pipefail
 LEAF_DAYS=397
 RENEW_DAYS=30
 
-# The CA signs only names under the domain: a browser that trusts it trusts
-# it for nothing else.
+# The CA signs only the machine's own names, never an address: a browser
+# that trusts it trusts it for nothing else, even when DOMAIN is a company's
+# own. Listing no IP form would leave every address permitted (RFC 5280).
 make_ca() {
     [ -s "$STATE/ca.crt" ] && return
+    local n constraints=critical
+    for n in "${NAMES[@]}"; do constraints+=",permitted;DNS:$n.$DOMAIN"; done
+    constraints+=",excluded;IP:0.0.0.0/0.0.0.0,excluded;IP:0:0:0:0:0:0:0:0/0:0:0:0:0:0:0:0"
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3650 \
         -subj "/CN=dotvirt appliance CA, $DOMAIN" \
         -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
         -addext "keyUsage=critical,keyCertSign,cRLSign" \
-        -addext "nameConstraints=critical,permitted;DNS:$DOMAIN" \
+        -addext "nameConstraints=$constraints" \
         -keyout "$STATE/ca.key" -out "$STATE/ca.crt" 2>/dev/null
 }
 
@@ -108,7 +112,7 @@ dotvirt console: https://console.$DOMAIN
 Git forge: https://git.$DOMAIN
 $signin
 The site's DNS points console.$DOMAIN, git.$DOMAIN and idm.$DOMAIN at this machine.
-Trust this machine's CA in your browser; it signs names under $DOMAIN only.
+Trust this machine's CA in your browser; it signs these three names only.
 CA SHA-256: $(ca_fingerprint)
 Its certificate: ssh root@<this machine> dotvirt-appliance ca > dotvirt-ca.crt
 ISSUE
@@ -117,14 +121,7 @@ ISSUE
 
 read_settings "$SETTINGS"
 mkdir -p -m 700 "$STATE"
-
-# Passkeys, accounts and certificates are bound to the domain and the
-# provider the first start saw.
-if [ -s "$STATE/settings" ]; then
-    read -r first_domain first_identity <"$STATE/settings"
-    [ "$first_domain $first_identity" = "$DOMAIN $IDENTITY" ] ||
-        fail "$SETTINGS: this machine serves $first_domain with $first_identity sign-in; they are set at install"
-fi
+check_bound
 
 edge_unit() { unit dotvirt-edge edge edge; }
 identity_unit() { unit dotvirt-identity kanidm idm; }
@@ -136,11 +133,17 @@ leaf edge "console.$DOMAIN" "git.$DOMAIN"
 if [ "${1:-}" = renew ]; then
     for name in "${made[@]}"; do
         case $name in
-        edge) edge_unit; u=dotvirt-edge ;;
-        idm) identity_unit; u=dotvirt-identity ;;
+        edge) edge_unit ;;
+        idm) identity_unit ;;
         esac
+        echo "renewed the certificate of $name"
+    done
+    # Every run hands the cluster the current pair: a run that replaced one
+    # and then failed to apply leaves nothing new for the next to make.
+    units=(dotvirt-edge)
+    [ "$IDENTITY" != kanidm ] || units+=(dotvirt-identity)
+    for u in "${units[@]}"; do
         oc kustomize "$UNITS/$u" | oc apply -f - >/dev/null
-        echo "renewed the certificate of $u"
     done
     exit 0
 fi

@@ -17,7 +17,10 @@ grep -v '^#' "$here/manifests.sha256" | while read -r sum file url; do
     echo "$sum  $units/$file" | sha256sum -c --quiet -
 done
 
-# portail runs the image the base embeds, controller and data planes alike.
+# portail runs the image the base embeds, controller and data planes alike;
+# a base embedding another release would leave the edge with no image.
+grep -q " $PORTAIL_IMAGE\$" /usr/lib/embedded-images/manifest ||
+    { echo "the base embeds no $PORTAIL_IMAGE: set PORTAIL_IMAGE to its portail" >&2; exit 1; }
 sed -i "s|image: ghcr.io/epheo/portail$|image: $PORTAIL_IMAGE|" "$units/016-portail/controller.yaml"
 grep -q "image: $PORTAIL_IMAGE$" "$units/016-portail/controller.yaml"
 
