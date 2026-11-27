@@ -8,4 +8,4 @@ LABEL io.github.epheo.installer.target="ghcr.io/epheo/microshift:latest" \
       io.github.epheo.installer.domain="console;git" \
       io.github.epheo.installer.identity="kanidm:idm" \
       io.github.epheo.installer.settings="/etc/dotvirt/appliance.env" \
-      io.github.epheo.installer.reserved-users="admin;anonymous;api;assets;attachments;avatar;avatars;captcha;login;metrics;org;v2"
+      io.github.epheo.installer.reserved-users="actor;admin;anonymous;api;assets;attachments;avatar;avatars;captcha;dotvirt;explore;ghost;git;invite;issues;login;metrics;milestones;notifications;org;pulls;repo;root;user;v2"

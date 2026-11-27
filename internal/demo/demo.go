@@ -64,7 +64,7 @@ func (s *System) Purposes(ctx context.Context) ([]engine.Purpose, error) {
 		{ID: "virtualization", Name: "Virtualization", Summary: "Virtual machines, identity, git forge",
 			Includes: []string{"Virtual machines", "Single sign-on", "Git forge"}, DataDisks: "none",
 			Names: []string{"console", "git"}, Identity: "kanidm", IdentityName: "idm",
-			Settings: "/etc/dotvirt/appliance.env", ReservedUsers: strings.Split("admin;anonymous;api;assets;attachments;avatar;avatars;captcha;login;metrics;org;v2", ";")},
+			Settings: "/etc/dotvirt/appliance.env", ReservedUsers: strings.Split("actor;admin;anonymous;api;assets;attachments;avatar;avatars;captcha;dotvirt;explore;ghost;git;invite;issues;login;metrics;milestones;notifications;org;pulls;repo;root;user;v2", ";")},
 	}, nil
 }
 
