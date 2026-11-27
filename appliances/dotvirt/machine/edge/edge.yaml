@@ -1,0 +1,101 @@
+# The machine's one front door: a Gateway on the machine's address, by
+# MicroShift's LoadBalancer. Every name shares :443, picked by SNI.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dotvirt-edge
+---
+apiVersion: portail.epheo.eu/v1alpha1
+kind: GatewayParameters
+metadata:
+  name: edge
+  namespace: dotvirt-edge
+spec:
+  # The controller would render its ghcr.io name: nodes never pull.
+  image: @PORTAIL_IMAGE@
+  service:
+    type: LoadBalancer
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: edge
+  namespace: dotvirt-edge
+spec:
+  gatewayClassName: portail
+  infrastructure:
+    parametersRef:
+      group: portail.epheo.eu
+      kind: GatewayParameters
+      name: edge
+  listeners:
+    # Only the install's namespace attaches here: dotvirt's operator binds
+    # the console and the forge each to its own listener.
+    - name: console
+      port: 443
+      protocol: HTTPS
+      hostname: console.@DOMAIN@
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: edge-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: dotvirt-operator
+    - name: git
+      port: 443
+      protocol: HTTPS
+      hostname: git.@DOMAIN@
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: edge-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: dotvirt-operator
+    # Passthrough: the apiserver checks Kanidm's own certificate, and
+    # Kanidm refuses plain HTTP. Without Kanidm nothing attaches.
+    - name: idm
+      port: 443
+      protocol: TLS
+      hostname: idm.@DOMAIN@
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: kanidm
+        kinds:
+          - kind: TLSRoute
+    - name: http
+      port: 80
+      protocol: HTTP
+      hostname: "*.@DOMAIN@"
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# Someone typing console.<domain> lands on https.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect
+  namespace: dotvirt-edge
+spec:
+  parentRefs:
+    - name: edge
+      sectionName: http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

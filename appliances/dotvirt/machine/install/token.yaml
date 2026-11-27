@@ -1,0 +1,20 @@
+# IDENTITY=none: the first admin signs in with a token for this account,
+# from `dotvirt-appliance token` on the machine.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dotvirt-admin
+  namespace: dotvirt-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dotvirt-appliance-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: dotvirt-admin
+    namespace: dotvirt-operator

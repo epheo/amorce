@@ -1,0 +1,178 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kanidm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kanidm
+  namespace: kanidm
+data:
+  # domain is the passkeys' relying party: renaming it breaks every passkey
+  # enrolled under it, so setup refuses a new DOMAIN.
+  server.toml: |
+    version = "2"
+    bindaddress = "0.0.0.0:8443"
+    domain = "idm.@DOMAIN@"
+    origin = "https://idm.@DOMAIN@"
+    db_path = "/data/kanidm.db"
+    tls_chain = "/etc/kanidm/tls/tls.crt"
+    tls_key = "/etc/kanidm/tls/tls.key"
+    log_level = "info"
+
+    [online_backup]
+    path = "/backup"
+    schedule = "@daily"
+    versions = 7
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kanidm-data
+  namespace: kanidm
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kanidm-backup
+  namespace: kanidm
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kanidm
+  namespace: kanidm
+  labels:
+    app: kanidm
+spec:
+  replicas: 1
+  # One writer: the database is SQLite on a ReadWriteOnce volume.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kanidm
+  template:
+    metadata:
+      labels:
+        app: kanidm
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: kanidmd
+          image: @KANIDM_SERVER_IMAGE@
+          env:
+            # In env, not args: kanidmd commands run by exec (recover-account,
+            # scripting reload) read the same config.
+            - name: KANIDM_CONFIG
+              value: /etc/kanidm/config/server.toml
+          ports:
+            - name: https
+              containerPort: 8443
+          startupProbe:
+            httpGet:
+              path: /status
+              port: https
+              scheme: HTTPS
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: https
+              scheme: HTTPS
+          # A timer, not a health check: kanidmd re-reads its certificate only
+          # at start or on reload, renew replaces it, and the image has no
+          # shell to loop in. scripting reload exits 0 even when it fails, so
+          # this probe never restarts the pod.
+          livenessProbe:
+            exec:
+              command: [/sbin/kanidmd, scripting, reload]
+            periodSeconds: 21600
+            timeoutSeconds: 30
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: backup
+              mountPath: /backup
+            - name: config
+              mountPath: /etc/kanidm/config
+              readOnly: true
+            - name: tls
+              mountPath: /etc/kanidm/tls
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kanidm-data
+        - name: backup
+          persistentVolumeClaim:
+            claimName: kanidm-backup
+        - name: config
+          configMap:
+            name: kanidm
+        - name: tls
+          secret:
+            secretName: idm-tls
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kanidm
+  namespace: kanidm
+spec:
+  selector:
+    app: kanidm
+  # 443: Kanidm builds its links from the URL its CLI called.
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+---
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: TLSRoute
+metadata:
+  name: idm
+  namespace: kanidm
+spec:
+  parentRefs:
+    - name: edge
+      namespace: dotvirt-edge
+      sectionName: idm
+  hostnames:
+    - idm.@DOMAIN@
+  rules:
+    - backendRefs:
+        - name: kanidm
+          port: 443

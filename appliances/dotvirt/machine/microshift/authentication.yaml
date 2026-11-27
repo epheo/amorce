@@ -1,0 +1,21 @@
+# IDENTITY=kanidm: the apiserver trusts the ID tokens Kanidm mints for
+# dotvirt, which hands them on as each person's bearer. Kanidm gives each
+# client its own issuer: tokens for the forge are refused here.
+# idm: keeps Kanidm's names off system: and ServiceAccounts. claims are typed
+# any in CEL: dyn() lets map() range. Client certificates and ServiceAccount
+# tokens keep working beside it.
+apiVersion: apiserver.config.k8s.io/v1
+kind: AuthenticationConfiguration
+jwt:
+  - issuer:
+      url: https://idm.@DOMAIN@/oauth2/openid/dotvirt
+      audiences: [dotvirt]
+      certificateAuthority: |
+@CA_PEM@
+    claimMappings:
+      username:
+        expression: '"idm:" + claims.preferred_username'
+      groups:
+        expression: 'has(claims.groups) ? dyn(claims.groups).map(g, "idm:" + g) : []'
+      uid:
+        claim: sub

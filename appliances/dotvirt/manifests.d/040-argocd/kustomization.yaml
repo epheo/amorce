@@ -1,0 +1,44 @@
+# Argo CD for dotvirt: the upstream install, with what dotvirt and an
+# appliance need on MicroShift.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - namespace.yaml
+  - scc.yaml
+  - install.yaml
+patches:
+  # Plain HTTP in the cluster: the forge delivers webhooks to the Service
+  # without a trust store. Submodules off: Argo would fetch one with the
+  # parent repo's credential, from any host the repo names.
+  - target: {kind: ConfigMap, name: argocd-cmd-params-cm}
+    patch: |-
+      - op: add
+        path: /data
+        value:
+          server.insecure: "true"
+          reposerver.enable.git.submodule: "false"
+          applicationsetcontroller.enable.git.submodule: "false"
+  - target: {kind: Deployment, name: argocd-server}
+    patch: |-
+      - op: test
+        path: /spec/template/spec/containers/0/name
+        value: argocd-server
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: ARGOCD_GIT_MODULES_ENABLED, value: "false"}
+  # Each Application syncs as the account dotvirt maps to its project, not
+  # as the controller, whose rights are cluster-wide. No local admin: people
+  # work in dotvirt, and its session secret could be forged from Argo's.
+  # Key by key: upstream's argocd-cm carries its own resource exclusions.
+  - target: {kind: ConfigMap, name: argocd-cm}
+    patch: |-
+      - op: add
+        path: /data/application.sync.impersonation.enabled
+        value: "true"
+      - op: add
+        path: /data/application.sync.impersonation.enforced
+        value: "true"
+      - op: add
+        path: /data/admin.enabled
+        value: "false"

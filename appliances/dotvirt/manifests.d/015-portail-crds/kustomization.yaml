@@ -1,0 +1,6 @@
+# Before the controller and our GatewayParameters, in their own unit.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gatewayparameters.yaml
+  - ratelimitpolicy.yaml

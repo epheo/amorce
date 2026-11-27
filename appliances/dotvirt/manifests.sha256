@@ -1,0 +1,16 @@
+# What render.sh fetches into manifests.d, checked by sha256: bump a version
+# and its sum together.
+# KubeVirt stays on 1.9 while dotvirt builds on virt-template 0.2 and its
+# real loop runs 1.9: KubeVirt 1.10 installs virt-template 0.3. Move both
+# with dotvirt.
+9ac45a436c49d32e6fc21d542bcb7600b970705297b9e6752f3ef9b0a1d292da  030-kubevirt/kubevirt-operator.yaml  https://github.com/kubevirt/kubevirt/releases/download/v1.9.1/kubevirt-operator.yaml
+43106136dbce3312bdbfdeae612aacafc6c12da518d233f90645b4685d84a2af  031-kubevirt-cr/kubevirt-cr.yaml  https://github.com/kubevirt/kubevirt/releases/download/v1.9.1/kubevirt-cr.yaml
+c7d92bd1b2ee1a3952a5990000437c08d58109f31c0bd48ab6188ec27a13e224  032-cdi/cdi-operator.yaml  https://github.com/kubevirt/containerized-data-importer/releases/download/v1.66.1/cdi-operator.yaml
+a497f90de608c1df26f9ee4095289373f17132d74a2042ca03e00c17c964f8a7  033-cdi-cr/cdi-cr.yaml  https://github.com/kubevirt/containerized-data-importer/releases/download/v1.66.1/cdi-cr.yaml
+4b542c51e16c1cb7d796d497bd7bd85f37c3c18697cb814505842d871c07df8a  015-portail-crds/gatewayparameters.yaml  https://raw.githubusercontent.com/epheo/portail/v0.3.0/deploy/crds/gatewayparameters.yaml
+812778255056c729a9db5d5df7cea63bd0f3f383f425840b51732636bdd87518  015-portail-crds/ratelimitpolicy.yaml  https://raw.githubusercontent.com/epheo/portail/v0.3.0/deploy/crds/ratelimitpolicy.yaml
+67716a095e3ef2023d103f3ae6437f8e20f685b36d6b7943f568aeb08ec79d28  016-portail/namespace.yaml  https://raw.githubusercontent.com/epheo/portail/v0.3.0/deploy/install/namespace.yaml
+a002bcb3bd4d4f4c8746970ee69d1249823647d3ad48dcd1833f30a7c2baf29e  016-portail/rbac.yaml  https://raw.githubusercontent.com/epheo/portail/v0.3.0/deploy/install/rbac.yaml
+e27d2c29dae1cd49dd08e71c4012a711b3cf7c26d089c24c63f1d0267d1af2c3  016-portail/controller.yaml  https://raw.githubusercontent.com/epheo/portail/v0.3.0/deploy/install/controller.yaml
+7993bca55f7a11594ff830ca307ee3c07442aef14fa0d8013d86d1fd8b65c3e2  016-portail/gatewayclass.yaml  https://raw.githubusercontent.com/epheo/portail/v0.3.0/deploy/install/gatewayclass.yaml
+22b404352546b3bd000cd8354de793e8ca748fc8f3b2798cefe397dc4cafef27  040-argocd/install.yaml  https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.3/manifests/install.yaml

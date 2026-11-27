@@ -1,0 +1,161 @@
+#!/bin/bash
+# setup [renew]: the machine's own part of the appliance, from the settings
+# file, before MicroShift starts: the machine CA and its certificates, the
+# MicroShift units that name the domain, the apiserver's trust in Kanidm,
+# and what the screen says. renew, from its timer, replaces a certificate
+# near its end and hands it to the running cluster.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+LEAF_DAYS=397
+RENEW_DAYS=30
+
+# The CA signs only the machine's own names, never an address: a browser
+# that trusts it trusts it for nothing else, even when DOMAIN is a company's
+# own. Listing no IP form would leave every address permitted (RFC 5280).
+make_ca() {
+    [ -s "$STATE/ca.crt" ] && return
+    local n constraints=critical
+    for n in "${NAMES[@]}"; do constraints+=",permitted;DNS:$n.$DOMAIN"; done
+    constraints+=",excluded;IP:0.0.0.0/0.0.0.0,excluded;IP:0:0:0:0:0:0:0:0/0:0:0:0:0:0:0:0"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3650 \
+        -subj "/CN=dotvirt appliance CA, $DOMAIN" \
+        -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" \
+        -addext "nameConstraints=$constraints" \
+        -keyout "$STATE/ca.key" -out "$STATE/ca.crt" 2>/dev/null
+}
+
+# leaf NAME HOST...: a certificate for the hosts, made again near its end;
+# NAME joins made when it is new.
+made=()
+leaf() {
+    local name=$1 sans="" h
+    shift
+    if [ -s "$STATE/$name.crt" ] &&
+        openssl x509 -in "$STATE/$name.crt" -noout -checkend $((RENEW_DAYS * 86400)) >/dev/null; then
+        return
+    fi
+    for h in "$@"; do sans+="${sans:+,}DNS:$h"; done
+    openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=$1" \
+        -keyout "$STATE/$name.key.new" -out "$STATE/$name.csr" 2>/dev/null
+    openssl x509 -req -in "$STATE/$name.csr" -CA "$STATE/ca.crt" -CAkey "$STATE/ca.key" \
+        -days "$LEAF_DAYS" -out "$STATE/$name.crt.new" 2>/dev/null -extfile <(
+        printf '%s\n' "basicConstraints=critical,CA:FALSE" "keyUsage=critical,digitalSignature" \
+            "extendedKeyUsage=serverAuth" "subjectAltName=$sans")
+    # The chain names the CA too: Kanidm hands it to clients as is.
+    cat "$STATE/ca.crt" >>"$STATE/$name.crt.new"
+    mv "$STATE/$name.key.new" "$STATE/$name.key"
+    mv "$STATE/$name.crt.new" "$STATE/$name.crt"
+    rm -f "$STATE/$name.csr"
+    made+=("$name")
+}
+
+# unit NAME TEMPLATE CERT: TEMPLATE's files with the domain filled in, and
+# CERT's pair beside them, as MicroShift unit NAME.
+unit() {
+    local dir=$UNITS/$1 f
+    rm -rf "$dir.new"
+    mkdir -p -m 700 "$dir.new"
+    for f in "$SHARE/machine/$2"/*; do
+        sed "s/@DOMAIN@/$DOMAIN/g" "$f" >"$dir.new/${f##*/}"
+    done
+    if [ -n "${3:-}" ]; then
+        install -m 600 "$STATE/$3.crt" "$dir.new/tls.crt"
+        install -m 600 "$STATE/$3.key" "$dir.new/tls.key"
+    fi
+    rm -rf "$dir"
+    mv "$dir.new" "$dir"
+}
+
+install_unit() {
+    unit dotvirt-install install
+    install -m 644 "$STATE/ca.crt" "$UNITS/dotvirt-install/ca.crt"
+    {
+        printf '%s\n' "apiVersion: kustomize.config.k8s.io/v1beta1" "kind: Kustomization" "resources:" "  - dotvirt.yaml"
+        case $IDENTITY in
+        none) printf '%s\n' "  - token.yaml" ;;
+        kanidm) printf '%s\n' "  - kanidm.yaml" "patches:" "  - path: oidc.yaml" ;;
+        esac
+        printf '%s\n' "# The console and the forge trust Kanidm by the machine CA." \
+            "configMapGenerator:" "  - name: machine-ca" "    namespace: dotvirt-operator" \
+            "    files:" "      - ca.crt" "generatorOptions:" "  disableNameSuffixHash: true"
+    } >"$UNITS/dotvirt-install/kustomization.yaml"
+}
+
+apiserver_trust() {
+    local conf=$ROOT/etc/microshift/config.d/40-dotvirt-appliance.yaml
+    local auth=$ROOT/etc/microshift/dotvirt-appliance-authentication.yaml
+    if [ "$IDENTITY" != kanidm ]; then
+        rm -f "$conf" "$auth"
+        return
+    fi
+    # The PEM goes in as a YAML block, indented under certificateAuthority.
+    awk -v domain="$DOMAIN" -v ca="$STATE/ca.crt" '
+        /^@CA_PEM@$/ { while ((getline l < ca) > 0) print "        " l; next }
+        { gsub(/@DOMAIN@/, domain); print }
+    ' "$SHARE/machine/microshift/authentication.yaml" >"$auth.new"
+    mv "$auth.new" "$auth"
+    mkdir -p "$ROOT/etc/microshift/config.d"
+    install -m 644 "$SHARE/machine/microshift/40-dotvirt-appliance.yaml" "$conf"
+}
+
+screen() {
+    local signin
+    case $IDENTITY in
+    none) signin="Sign in with a token from this machine: dotvirt-appliance token" ;;
+    kanidm) signin="Sign in as $ADMIN_USER, once its invite set a passkey or password; a new invite: dotvirt-appliance invite" ;;
+    esac
+    mkdir -p "$ISSUES"
+    cat >"$ISSUES/50-dotvirt.issue.new" <<ISSUE
+dotvirt console: https://console.$DOMAIN
+Git forge: https://git.$DOMAIN
+$signin
+The site's DNS points console.$DOMAIN, git.$DOMAIN and idm.$DOMAIN at this machine.
+Trust this machine's CA in your browser; it signs these three names only.
+CA SHA-256: $(ca_fingerprint)
+Its certificate: ssh root@<this machine> dotvirt-appliance ca > dotvirt-ca.crt
+ISSUE
+    mv "$ISSUES/50-dotvirt.issue.new" "$ISSUES/50-dotvirt.issue"
+}
+
+read_settings "$SETTINGS"
+mkdir -p -m 700 "$STATE"
+check_bound
+
+edge_unit() { unit dotvirt-edge edge edge; }
+identity_unit() { unit dotvirt-identity kanidm idm; }
+
+make_ca
+leaf edge "console.$DOMAIN" "git.$DOMAIN"
+[ "$IDENTITY" != kanidm ] || leaf idm "idm.$DOMAIN"
+
+if [ "${1:-}" = renew ]; then
+    for name in "${made[@]}"; do
+        case $name in
+        edge) edge_unit ;;
+        idm) identity_unit ;;
+        esac
+        echo "renewed the certificate of $name"
+    done
+    # Every run hands the cluster the current pair: a run that replaced one
+    # and then failed to apply leaves nothing new for the next to make.
+    units=(dotvirt-edge)
+    [ "$IDENTITY" != kanidm ] || units+=(dotvirt-identity)
+    for u in "${units[@]}"; do
+        oc kustomize "$UNITS/$u" | oc apply -f - >/dev/null
+    done
+    exit 0
+fi
+
+edge_unit
+if [ "$IDENTITY" = kanidm ]; then
+    identity_unit
+else
+    rm -rf "$UNITS/dotvirt-identity"
+fi
+install_unit
+apiserver_trust
+screen
+[ -s "$STATE/settings" ] || echo "$DOMAIN $IDENTITY" >"$STATE/settings"
+echo "dotvirt appliance: console.$DOMAIN, sign-in $IDENTITY"

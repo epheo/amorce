@@ -1,0 +1,14 @@
+# IDENTITY=kanidm: Kanidm's dotvirt_admins administer the machine, as root
+# does. Everyone else gets what an admin grants them in RBAC.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dotvirt-appliance-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: idm:dotvirt_admins

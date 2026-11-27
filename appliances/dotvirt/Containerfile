@@ -1,0 +1,45 @@
+# The dotvirt appliance: epheo/microshift with KubeVirt, CDI, Argo CD, dotvirt
+# and Kanidm, every image embedded, so a machine with no registry in reach
+# comes up whole. Build with build.sh.
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE} AS render
+ARG PORTAIL_IMAGE
+ARG KANIDM_SERVER_IMAGE
+ARG KANIDM_TOOLS_IMAGE
+ARG OPERATOR_IMAGE
+ARG DOTVIRT_IMAGE
+COPY . /src
+RUN OUT=/out PORTAIL_IMAGE="${PORTAIL_IMAGE}" KANIDM_SERVER_IMAGE="${KANIDM_SERVER_IMAGE}" \
+    KANIDM_TOOLS_IMAGE="${KANIDM_TOOLS_IMAGE}" OPERATOR_IMAGE="${OPERATOR_IMAGE}" \
+    DOTVIRT_IMAGE="${DOTVIRT_IMAGE}" /src/render.sh
+
+FROM ${BASE_IMAGE}
+# Names the first admin cannot take, which the installer and setup both
+# refuse: Kanidm's built-in accounts and the name it refuses (root), its
+# clients here (dotvirt, git; dotvirt is also the forge's org), and the
+# names Forgejo 17 reserves that the admin name's rule allows.
+ARG RESERVED_USERS="actor;admin;anonymous;api;assets;attachments;avatar;avatars;captcha;dotvirt;explore;ghost;git;invite;issues;login;metrics;milestones;notifications;org;pulls;repo;root;user;v2"
+COPY --from=render /out/images /tmp/dotvirt/images
+COPY local /tmp/dotvirt/local
+COPY embed.sh /tmp/dotvirt/embed.sh
+RUN /tmp/dotvirt/embed.sh /tmp/dotvirt && rm -rf /tmp/dotvirt
+COPY --from=render /out/manifests.d/ /usr/lib/microshift/manifests.d/
+COPY --from=render /out/share/ /usr/share/dotvirt-appliance/
+COPY rootfs/ /
+RUN printf '%s\n' "${RESERVED_USERS}" | tr ';' '\n' >/usr/share/dotvirt-appliance/reserved-users && \
+    systemctl enable dotvirt-appliance-setup.service dotvirt-appliance-identity.service \
+        dotvirt-appliance-renew.timer
+
+# What the installer (epheo/amorce) offers this image as. secure-boot comes
+# from the base: off while its DRBD module is unsigned.
+LABEL io.github.epheo.installer.id="virtualization" \
+      io.github.epheo.installer.name="Virtualization" \
+      io.github.epheo.installer.summary="Virtual machines, with a web console" \
+      io.github.epheo.installer.includes="Virtual machines (KubeVirt);dotvirt web console at console.<domain>;Changes as pull requests (Argo CD);A git forge at git.<domain>;Sign-in by Kanidm, if chosen;Disk image uploads (CDI)" \
+      io.github.epheo.installer.data-disks="thin" \
+      io.github.epheo.installer.target="ghcr.io/epheo/dotvirt-appliance:latest" \
+      io.github.epheo.installer.domain="console;git" \
+      io.github.epheo.installer.identity="kanidm:idm" \
+      io.github.epheo.installer.settings="/etc/dotvirt/appliance.env" \
+      io.github.epheo.installer.reserved-users="${RESERVED_USERS}"

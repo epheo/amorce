@@ -1,0 +1,14 @@
+#!/bin/bash
+# dotvirt-appliance token|invite|ca: what the machine's screen points at.
+set -euo pipefail
+. /usr/libexec/dotvirt-appliance/lib.sh
+case ${1:-} in
+token)
+    read_settings "$SETTINGS"
+    [ "$IDENTITY" = none ] || fail "this machine signs in through Kanidm: use your invite, or dotvirt-appliance invite"
+    oc create token dotvirt-admin -n dotvirt-operator --duration=12h
+    ;;
+invite) exec /usr/libexec/dotvirt-appliance/identity invite ;;
+ca) cat "$STATE/ca.crt" ;;
+*) fail "usage: dotvirt-appliance token|invite|ca" ;;
+esac

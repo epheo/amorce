@@ -1,0 +1,14 @@
+[Unit]
+Description=dotvirt appliance: the machine's certificates and the units naming its domain
+# No file: a worker, or a machine set up by hand that has not written it yet.
+ConditionPathExists=/etc/dotvirt/appliance.env
+# MicroShift reads the units and the apiserver's trust at its start only.
+Before=microshift.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/dotvirt-appliance/setup
+
+[Install]
+WantedBy=microshift.service

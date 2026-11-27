@@ -1,0 +1,12 @@
+# Images the KubeVirt operator deploys without any manifest naming them: its
+# own version's operands, and virt-template's, whose version is built into
+# virt-operator. Bump with KubeVirt; an air-gapped install that pulls one
+# fails on it (amorce's test/vm/virt.sh).
+quay.io/kubevirt/virt-api:v1.9.1
+quay.io/kubevirt/virt-controller:v1.9.1
+quay.io/kubevirt/virt-handler:v1.9.1
+quay.io/kubevirt/virt-launcher:v1.9.1
+quay.io/kubevirt/virt-exportproxy:v1.9.1
+quay.io/kubevirt/virt-exportserver:v1.9.1
+quay.io/kubevirt/virt-template-apiserver:v0.2.3
+quay.io/kubevirt/virt-template-controller:v0.2.3
