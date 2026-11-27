@@ -90,6 +90,10 @@ check "none: no OIDC" bash -c "! grep -q oidc '$work/dotvirt-install.yaml'"
 check "none: no Kanidm" test ! -e "$ROOT/etc/microshift/manifests.d/dotvirt-identity"
 check "none: the apiserver unchanged" test ! -e "$ROOT/etc/microshift/config.d/40-dotvirt-appliance.yaml"
 
+# The installer accepts these; Kanidm's CLI gets them past -- and --mail=.
+root $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_DISPLAY=-Alice\nADMIN_EMAIL=-alice@example.com\n'
+check "a leading dash in the name and the email" setup
+
 refused "no DOMAIN" "no DOMAIN" $'IDENTITY=none\n'
 refused "an empty DOMAIN" "no DOMAIN" $'DOMAIN=\nIDENTITY=none\n'
 refused "an address" "not a domain" $'DOMAIN=10.0.0.1\nIDENTITY=none\n'
@@ -102,8 +106,6 @@ refused "a reserved admin" "taken" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nA
 refused "a Kanidm client's name" "taken" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=git\nADMIN_EMAIL=a@example.com\n'
 refused "a name Forgejo reserves" "taken" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=user\nADMIN_EMAIL=a@example.com\n'
 refused "a name Kanidm refuses" "taken" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=root\nADMIN_EMAIL=a@example.com\n'
-refused "a leading dash in the name" "not a name" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_DISPLAY=-Alice\nADMIN_EMAIL=a@example.com\n'
-refused "a leading dash in the email" "not an email" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_EMAIL=-alice@example.com\n'
 refused "a non-ASCII letter in the email's domain" "not an email" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_EMAIL=a@\u212aexample.com\n'
 refused "a bad email" "not an email" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_EMAIL=alice\n'
 refused "a quote in the name" "not a name" $'DOMAIN=virt.example.com\nIDENTITY=kanidm\nADMIN_USER=alice\nADMIN_DISPLAY=Al"ice\nADMIN_EMAIL=a@example.com\n'

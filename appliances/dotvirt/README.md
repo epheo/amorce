@@ -46,6 +46,7 @@ The installer writes `/etc/dotvirt/appliance.env` (its README, Names and sign-in
 - The first admin is in `dotvirt_admins`. The screen shows an invite link to set a passkey or a password.
 - The first admin is made once. Later, Kanidm's admins own them like anyone: a removal from `dotvirt_admins` holds.
 - `dotvirt_admins` is in `idm_high_privilege`: Kanidm's service desk and group admins cannot reset or edit its members.
+- Kanidm's data lost (its volume deleted, an old restore): remove `admin`, `high-privilege` and `invited` from `/var/lib/dotvirt-appliance`, then `systemctl restart dotvirt-appliance-identity`. The first admin is made again, with a new invite.
 - Names the first admin cannot take: Kanidm's own accounts, `root`, `dotvirt`, `git`, and the names the forge reserves (the image's `reserved-users` label).
 - The link lasts an hour, and only its last opening counts. `dotvirt-appliance invite` makes a new one.
 - Everyone else: add them in Kanidm, then grant them RBAC; every person may sign in, and sees what RBAC grants.

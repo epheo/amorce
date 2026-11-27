@@ -41,12 +41,11 @@ check_domain() {
     done
 }
 
-# A leading - would reach Kanidm's CLI as a flag. The domain is ASCII before
-# it is lowercased, which maps some other letters onto ASCII ones (the
-# Kelvin sign onto k).
+# The domain is ASCII before it is lowercased, which maps some other letters
+# onto ASCII ones (the Kelvin sign onto k).
 check_email() {
     local local_part=${1%%@*} domain=${1#*@}
-    [[ $1 == *@* && -n $local_part && $domain != *@* && $1 != -* ]] || return 1
+    [[ $1 == *@* && -n $local_part && $domain != *@* ]] || return 1
     [[ ! $domain =~ [^A-Za-z0-9.-] ]] || return 1
     ((${#1} <= 254 && ${#local_part} <= 64)) || return 1
     local bad='[^!#%&*+./0-9=?A-Z^_a-z{|}~-]'
@@ -56,7 +55,7 @@ check_email() {
 
 check_display() {
     local bad=$'[[:cntrl:]"\'\\$`]'
-    ((${#1} <= 64)) && [[ $1 != -* && ! $1 =~ $bad ]]
+    ((${#1} <= 64)) && [[ ! $1 =~ $bad ]]
 }
 
 # read_settings sets DOMAIN, IDENTITY and ADMIN_*, or fails saying why. The

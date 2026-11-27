@@ -30,10 +30,12 @@ client dotvirt "dotvirt console" "https://console.$DOMAIN/" "https://console.$DO
 # SSO: the forge's default name for its issuer, in its callback path.
 client git "Git forge" "https://git.$DOMAIN/" "https://git.$DOMAIN/user/oauth2/SSO/callback"
 
-# Only at the first run: later, Kanidm's admins own the first admin too.
+# Only at the first run: later, Kanidm's admins own the first admin too. A
+# display name or an email may start with -, which -- and --mail= keep from
+# reading as a flag.
 if [ -n "$FIRST" ]; then
-    missing kanidm person get "$ADMIN_USER" && kanidm person create "$ADMIN_USER" "$ADMIN_DISPLAY"
-    kanidm person update "$ADMIN_USER" --mail "$ADMIN_EMAIL"
+    missing kanidm person get "$ADMIN_USER" && kanidm person create -- "$ADMIN_USER" "$ADMIN_DISPLAY"
+    kanidm person update "$ADMIN_USER" --mail="$ADMIN_EMAIL"
     kanidm group add-members dotvirt_admins "$ADMIN_USER"
 fi
 if [ -n "$INVITE" ]; then
