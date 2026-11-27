@@ -90,6 +90,7 @@ until_on "dotvirt available" 1800 \
 until_on "the default Pool on the data disks" 300 "$oc get pools -o jsonpath='{.items[*].spec.vg}' | grep -qw myvg1"
 until_on "r-drbd-local the default class" 120 \
   "$oc get sc r-drbd-local -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}' | grep -qx true"
+until_on "every PVC Bound" 600 "$oc get pvc -A --no-headers | grep -q . && ! $oc get pvc -A --no-headers | grep -v ' Bound '"
 
 step "the console and the forge, by name, under the machine's CA"
 on dotvirt-appliance ca > "$work/ca.pem"
