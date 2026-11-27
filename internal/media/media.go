@@ -15,6 +15,11 @@ import (
 // IndexPath is relative to the media root.
 const IndexPath = "images/purposes.json"
 
+// Shared is the one OCI layout under images/ that iso writes every image
+// to, each under its own tag: images built FROM the same base share its
+// layers once.
+const Shared = "oci"
+
 // LabelPrefix starts the image labels that describe a purpose.
 const LabelPrefix = "io.github.epheo.installer."
 

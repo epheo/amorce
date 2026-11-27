@@ -219,14 +219,18 @@ func addImage(tree, ref string, over media.Image) (media.Image, error) {
 	if !ok || tag == "" {
 		tag = "latest"
 	}
-	dir := filepath.Join(tree, "images", layout)
+	dir := filepath.Join(tree, "images", media.Shared)
+	tag = layout + "-" + tag
+	if _, _, err := readLayout(dir, tag); err == nil {
+		return media.Image{}, fmt.Errorf("%s: another image on the media is also %s", ref, tag)
+	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return media.Image{}, err
 	}
 	if err := sh("skopeo", "copy", "-q", src, "oci:"+dir+":"+tag); err != nil {
 		return media.Image{}, err
 	}
-	labels, size, err := readLayout(dir)
+	labels, size, err := readLayout(dir, tag)
 	if err != nil {
 		return media.Image{}, err
 	}
@@ -240,7 +244,7 @@ func addImage(tree, ref string, over media.Image) (media.Image, error) {
 	}
 	im := media.Image{
 		ID: l("id"), Name: l("name"), Summary: l("summary"), DataDisks: l("data-disks"), SecureBoot: l("secure-boot"),
-		Layout: layout, Tag: tag, Target: firstOf(over.Target, pulled, l("target"), target), Bytes: size,
+		Layout: media.Shared, Tag: tag, Target: firstOf(over.Target, pulled, l("target"), target), Bytes: size,
 	}
 	if v := l("includes"); v != "" {
 		im.Includes = strings.Split(v, ";")
@@ -272,23 +276,34 @@ func firstOf(v ...string) string {
 	return ""
 }
 
-// readLayout returns an OCI layout's labels and compressed layer bytes.
-func readLayout(dir string) (map[string]string, int64, error) {
+// readLayout returns the labels and compressed layer bytes of the image
+// tagged tag in an OCI layout.
+func readLayout(dir, tag string) (map[string]string, int64, error) {
 	blob := func(digest string) ([]byte, error) {
 		alg, hex, _ := strings.Cut(digest, ":")
 		return os.ReadFile(filepath.Join(dir, "blobs", alg, hex))
 	}
 	var index struct {
 		Manifests []struct {
-			Digest string `json:"digest"`
+			Digest      string            `json:"digest"`
+			Annotations map[string]string `json:"annotations"`
 		} `json:"manifests"`
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "index.json"))
 	if err != nil {
 		return nil, 0, err
 	}
-	if err := json.Unmarshal(b, &index); err != nil || len(index.Manifests) == 0 {
-		return nil, 0, fmt.Errorf("%s: no manifest", dir)
+	if err := json.Unmarshal(b, &index); err != nil {
+		return nil, 0, fmt.Errorf("%s: %v", dir, err)
+	}
+	digest := ""
+	for _, m := range index.Manifests {
+		if m.Annotations["org.opencontainers.image.ref.name"] == tag {
+			digest = m.Digest
+		}
+	}
+	if digest == "" {
+		return nil, 0, fmt.Errorf("%s: no image tagged %s", dir, tag)
 	}
 	var man struct {
 		Config struct {
@@ -298,7 +313,7 @@ func readLayout(dir string) (map[string]string, int64, error) {
 			Size int64 `json:"size"`
 		} `json:"layers"`
 	}
-	if b, err = blob(index.Manifests[0].Digest); err != nil {
+	if b, err = blob(digest); err != nil {
 		return nil, 0, err
 	}
 	if err := json.Unmarshal(b, &man); err != nil {
