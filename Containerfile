@@ -21,7 +21,8 @@ COPY --from=console-files /out/ /
 FROM quay.io/centos-bootc/centos-bootc:stream10
 RUN dnf -y install dracut-live smartmontools squashfs-tools xorriso mtools \
  && dnf clean all && rm -rf /var/cache/dnf /var/log/dnf* /var/lib/dnf
-COPY --from=console / /
+COPY --from=console /usr/bin/amorce /usr/bin/amorce
+COPY --from=console /usr/share/amorce /usr/share/amorce
 COPY live/rootfs/ /
 RUN systemctl mask bootc-fetch-apply-updates.timer rpm-ostree-countme.timer \
       bootc-publish-rhsm-facts.service NetworkManager-wait-online.service \
