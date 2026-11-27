@@ -88,6 +88,8 @@ until_on "CDI available" 900 "$oc wait cdi/cdi --for=condition=Available --timeo
 until_on "dotvirt available" 1800 \
   "$oc -n dotvirt-operator get dotvirt -o jsonpath='{.items[0].status.conditions[?(@.type==\"Available\")].status}' | grep -qx True"
 until_on "the default Pool on the data disks" 300 "$oc get pools -o jsonpath='{.items[*].spec.vg}' | grep -qw myvg1"
+until_on "r-drbd-local the default class" 120 \
+  "$oc get sc r-drbd-local -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}' | grep -qx true"
 
 step "the console and the forge, by name, under the machine's CA"
 on dotvirt-appliance ca > "$work/ca.pem"
