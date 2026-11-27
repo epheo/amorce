@@ -20,10 +20,10 @@ it as the Storage purpose.
 ```
 
 From a stornas checkout, after its `make sync-manifests images`, as the
-same user:
+same user, at amorce's root with stornas cloned beside it:
 
 ```
-STORNAS_SRC=../stornas ./build.sh
+STORNAS_SRC=../stornas appliances/stornas/build.sh
 ```
 
 - `PODMAN` names the podman whose storage holds the components (`podman` by default).
