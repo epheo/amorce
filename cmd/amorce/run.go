@@ -78,15 +78,40 @@ func serve(ctx context.Context, ttys []string, lookName, cmdline string, logf fu
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			var r retrier
 			for {
-				if err := frontend(ctx, dev, lookName, cmdline, logf, model, changes); err != nil {
+				err := frontend(ctx, dev, lookName, cmdline, logf, model, changes)
+				log, wait := r.next(err)
+				if log {
 					logf(fmt.Sprintf("%s: %v", dev, err))
 				}
-				time.Sleep(time.Second)
+				time.Sleep(wait)
 			}
 		}()
 	}
 	wg.Wait()
+}
+
+// retrier paces a terminal's restarts. One that keeps failing the same way,
+// as tty1 in a container, which has none, is logged once and retried ever
+// slower instead of every second.
+type retrier struct {
+	last string
+	wait time.Duration
+}
+
+// next says whether err is worth logging, and how long to wait.
+func (r *retrier) next(err error) (bool, time.Duration) {
+	switch {
+	case err == nil:
+		r.last, r.wait = "", time.Second
+		return false, r.wait
+	case err.Error() != r.last:
+		r.last, r.wait = err.Error(), time.Second
+		return true, r.wait
+	}
+	r.wait = min(2*r.wait, 30*time.Second)
+	return false, r.wait
 }
 
 // kernelConsoles maps console= arguments to devices; tty0 is the screen.

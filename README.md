@@ -34,7 +34,7 @@ podman run --rm -v $PWD/out:/out:Z localhost/amorce:dev iso --out /out/amorce.is
 
 - Every image goes in one OCI layout on the media, so layers they share are stored once.
 - Images built from the same distro build share almost all of it.
-- `ghcr.io/epheo/amorce` is this image as main builds it, signed keyless; it can stand in for `localhost/amorce:dev` above. Check it with:
+- `ghcr.io/epheo/amorce` is this image as main builds it, signed keyless; it can stand in for `localhost/amorce:dev` above. Check it, or `ghcr.io/epheo/amorce-console`, with:
 
 ```
 cosign verify --new-bundle-format=false \
@@ -201,7 +201,7 @@ The distro ships this binary; `amorce console` takes tty1 of every installed mac
 Distro, in its Containerfile:
 
 ```
-FROM ghcr.io/epheo/amorce:<tag> AS installer
+FROM ghcr.io/epheo/amorce-console@sha256:<digest> AS installer
 ...
 COPY --from=installer /usr/bin/amorce /usr/bin/amorce
 COPY --from=installer /usr/share/amorce /usr/share/amorce
@@ -212,7 +212,8 @@ RUN install -m 644 /usr/share/amorce/dist/amorce-console.service /usr/lib/system
     systemctl mask getty@tty1.service
 ```
 
-- `test/vm/console.Containerfile` adds the same lines to any OS image, for tests before the distro has them.
+- `ghcr.io/epheo/amorce-console` holds only these files (about 11 MB), built and signed with the installer image; pin it by digest.
+- `test/vm/console.Containerfile` adds the same lines to any OS image, for tests of a console the distro does not carry yet.
 - Why the distro: one binary, updated by bootc with everything else; no repo-specific copy to drift.
 
 ## Network
