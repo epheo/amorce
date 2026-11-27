@@ -13,7 +13,11 @@ images=()
 for base in "$@"; do
   name=$(basename "${base%:*}")
   os=localhost/$name:console
-  podman build -q -t "$os" --build-arg BASE="$base" -f "$here/console.Containerfile" "$here" >/dev/null
+  # The console layer is built here, so the image no longer says which
+  # registry it updates from; a pulled base does.
+  target=()
+  case $base in localhost/*) ;; *) target=(--label "io.github.epheo.installer.target=$base") ;; esac
+  podman build -q -t "$os" --build-arg BASE="$base" "${target[@]}" -f "$here/console.Containerfile" "$here" >/dev/null
   podman save --format oci-archive -o "$out/$name.tar" "$os"
   images+=(--image "oci-archive:/out/$name.tar")
 done

@@ -3,7 +3,9 @@
 #   podman build -t localhost/microshift:names -f test/vm/names.Containerfile test/vm
 ARG BASE=ghcr.io/epheo/microshift:latest
 FROM $BASE
-LABEL io.github.epheo.installer.domain="console;git" \
+# target stands in for the registry a pulled image comes from.
+LABEL io.github.epheo.installer.target="ghcr.io/epheo/microshift:latest" \
+      io.github.epheo.installer.domain="console;git" \
       io.github.epheo.installer.identity="kanidm:idm" \
       io.github.epheo.installer.settings="/etc/dotvirt/appliance.env" \
       io.github.epheo.installer.reserved-users="admin;anonymous;api;assets;attachments;avatar;avatars;captcha;login;metrics;org;v2"
