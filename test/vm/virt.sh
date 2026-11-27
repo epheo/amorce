@@ -7,7 +7,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 v="$here/vm.sh"
 work="$STATE/$vm"
 log="$work/serial.log"

@@ -7,7 +7,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 pre=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 v="$here/vm.sh"
 work="$STATE/$pre"
 step() { echo "== $*"; }
@@ -19,7 +19,7 @@ on() { # address command...
   local a=$1; shift
   ssh -i "$work/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -q "root@$a" "$@"
 }
-board() { on 10.99.0.21 installer machines 2>/dev/null || true; }
+board() { on 10.99.0.21 amorce machines 2>/dev/null || true; }
 wait_board() { # jq filter seconds
   for _ in $(seq 1 "$2"); do board | jq -e "$1" >/dev/null 2>&1 && return 0; sleep 5; done
   echo "timeout waiting for board: $1"; board; return 1
@@ -77,7 +77,7 @@ echo "ready: $(ready_nodes)"
 [ "$(ready_nodes)" = "store-01 store-02 " ]
 on 10.99.0.22 'test "$(microshift-profile)" = worker && ! ls /run/microshift-join-* /var/lib/microshift/bootstrap/kubeconfig 2>/dev/null &&
   ! systemctl is-failed -q greenboot-healthcheck'
-on 10.99.0.21 'grep -q "^10.99.0.22 store-02 # microshift-installer worker$" /etc/hosts'
+on 10.99.0.21 'grep -q "^10.99.0.22 store-02 # amorce worker$" /etc/hosts'
 
 step "a third machine joins with the words on the first machine's screen"
 boot "$pre-3" "$((port + 2))" MSI-JOIN-03
@@ -124,7 +124,7 @@ wait_board '.[] | select(.name == "store-03" and .state == "running" and .role =
 for _ in $(seq 1 120); do [ "$(ready_nodes)" = "store-01 store-02 store-03 " ] && break; sleep 5; done
 echo "ready: $(ready_nodes)"
 [ "$(ready_nodes)" = "store-01 store-02 store-03 " ]
-on 10.99.0.23 'grep -q "profile: worker" /etc/microshift-installer/site.yaml && test "$(stat -c %a /etc/microshift-installer/site.yaml)" = 600'
+on 10.99.0.23 'grep -q "profile: worker" /etc/amorce/site.yaml && test "$(stat -c %a /etc/amorce/site.yaml)" = 600'
 board | jq -r '.[] | "\(.name) \(.state) \(.address // "") \(.role // "")"'
 "$v" shot "$pre-1" "$work/board.png"
 echo "screen: $work/board.png"

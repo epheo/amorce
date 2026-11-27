@@ -10,7 +10,7 @@ repo=$(cd "$here/../.." && pwd)
 [ $# -gt 0 ] || { echo "usage: media.sh BASE..., like localhost/stornas-os:sb"; exit 2; }
 out=${OUT:?set OUT to a work directory}
 mkdir -p "$out"
-podman build -q -t localhost/microshift-installer:dev "$repo" >/dev/null
+podman build -q -t localhost/amorce:dev "$repo" >/dev/null
 images=()
 for base in "$@"; do
   name=$(basename "${base%:*}")
@@ -24,10 +24,10 @@ for base in "$@"; do
   podman save --format oci-archive -o "$out/$name.tar" "$os"
   images+=(--image "oci-archive:/out/$name.tar")
 done
-podman run --rm -v "$out:/out:Z" localhost/microshift-installer:dev \
+podman run --rm -v "$out:/out:Z" localhost/amorce:dev \
   iso --out /out/payload.iso --payload-only "${images[@]}" | grep -E 'installs as'
 for base in "$@"; do rm -f "$out/$(basename "${base%:*}").tar"; done
-podman run --rm -v "$out:/out:Z" localhost/microshift-installer:dev iso --out /out/installer.iso >/dev/null
+podman run --rm -v "$out:/out:Z" localhost/amorce:dev iso --out /out/installer.iso >/dev/null
 "$here/vm.sh" upload "${PAYLOAD:-msi-payload.iso}" "$out/payload.iso"
 "$here/vm.sh" upload msi-installer.iso "$out/installer.iso"
 rm -f "$out/payload.iso"

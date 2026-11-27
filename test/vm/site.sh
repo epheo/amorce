@@ -6,7 +6,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 v="$here/vm.sh"
 work="$STATE/$vm"
 log="$work/serial.log"
@@ -65,7 +65,7 @@ echo "$url answers $code"
 
 step "SSH key and kept answers"
 ssh -i "$work/id" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 \
-  root@10.99.0.12 cat /etc/microshift-installer/site.yaml > "$work/kept.yaml"
+  root@10.99.0.12 cat /etc/amorce/site.yaml > "$work/kept.yaml"
 grep -q "name: store-02" "$work/kept.yaml"
 grep -q "serial: MSI-SITE-01" "$work/kept.yaml"
 grep -q "site-test" "$work/kept.yaml"

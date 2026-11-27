@@ -7,7 +7,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 py=${PY:-python3}
 v="$here/vm.sh"
 work="$STATE/$vm"
@@ -84,7 +84,7 @@ done
 on "$new" 'set -e
   kubectl --kubeconfig /var/lib/microshift/resources/kubeadmin/kubeconfig get node set-01 --no-headers -o wide
   grep -q "nodeIP: '"$new"'" /etc/microshift/config.d/10-installer.yaml
-  grep -q "address: '"$new"'/24" /etc/microshift-installer/site.yaml'
+  grep -q "address: '"$new"'/24" /etc/amorce/site.yaml'
 for _ in $(seq 1 120); do
   code=$(curl -sk -m 10 -o /dev/null -w '%{http_code}' "https://$new:30080/" || true)
   [ "$code" = 200 ] && break

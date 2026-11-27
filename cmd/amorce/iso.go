@@ -25,8 +25,8 @@ func isoCmd(args []string) error {
 	out := fs.String("out", "", "ISO file to write")
 	var images strList
 	fs.Var(&images, "image", "bootc image to put on the media, repeatable (registry reference or skopeo transport:ref)")
-	label := fs.String("label", "MSINST", "volume label the live system boots from")
-	payloadOnly := fs.Bool("payload-only", false, "write only the images and site file, labeled MSPAYLOAD (MSPAYLOAD-SITE with no images), for media the installer reads beside its own")
+	label := fs.String("label", "AMORCE", "volume label the live system boots from")
+	payloadOnly := fs.Bool("payload-only", false, "write only the images and site file, labeled AMORCE-PAYLOAD (AMORCE-SITE with no images), for media the installer reads beside its own")
 	root := fs.String("root", "/", "live root to put on the media")
 	kargs := fs.String("kargs", "", "extra kernel arguments for the live system")
 	// One image without labels can be described by flags.
@@ -44,10 +44,10 @@ func isoCmd(args []string) error {
 	}
 	// Each medium needs its own label to be found; site media sit beside
 	// image media.
-	if *payloadOnly && *label == "MSINST" {
-		*label = "MSPAYLOAD"
+	if *payloadOnly && *label == "AMORCE" {
+		*label = "AMORCE-PAYLOAD"
 		if len(images) == 0 {
-			*label = "MSPAYLOAD-SITE"
+			*label = "AMORCE-SITE"
 		}
 	}
 	work := filepath.Join(filepath.Dir(*out), ".iso-work")

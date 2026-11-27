@@ -53,8 +53,8 @@ func proof(secret string, cert []byte, side string) string {
 }
 
 const (
-	clientSide = "microshift-installer/1 client\x00"
-	serverSide = "microshift-installer/1 server\x00"
+	clientSide = "amorce/1 client\x00"
+	serverSide = "amorce/1 server\x00"
 )
 
 // Error is a refusal, in the first machine's words.
@@ -140,7 +140,7 @@ func NewServer(path string) (*Server, error) {
 	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "microshift-installer"},
+		Subject:      pkix.Name{CommonName: "amorce"},
 		NotBefore:    now.Add(-time.Hour),
 		NotAfter:     now.AddDate(100, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

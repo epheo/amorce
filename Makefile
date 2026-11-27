@@ -1,4 +1,4 @@
-IMAGE ?= localhost/microshift-installer:dev
+IMAGE ?= localhost/amorce:dev
 OUT ?= out
 
 .PHONY: image iso test screens
@@ -16,4 +16,4 @@ test:
 	go test ./...
 
 screens:
-	go run ./cmd/installer screens $(OUT)/screens
+	go run ./cmd/amorce screens $(OUT)/screens

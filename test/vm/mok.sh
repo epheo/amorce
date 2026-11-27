@@ -7,7 +7,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 vm=$1 port=$2
-image=${IMAGE:-localhost/microshift-installer:dev}
+image=${IMAGE:-localhost/amorce:dev}
 v="$here/vm.sh"
 work="$STATE/$vm"
 log="$work/serial.log"
@@ -83,7 +83,7 @@ for _ in $(seq 1 120); do on true 2>/dev/null && break; sleep 5; done
 on 'set -e
   dmesg | grep -i -E "secure ?boot.*enabled"
   cat /sys/kernel/security/lockdown
-  dmesg | grep "Loaded X.509 cert .microshift-installer test module key"
+  dmesg | grep "Loaded X.509 cert .amorce test module key"
   for _ in $(seq 1 60); do lsmod | grep -q "^drbd " && break; sleep 5; done
   lsmod | grep "^drbd "
   echo "drbd signer: $(modinfo -F signer drbd)"

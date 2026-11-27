@@ -12,7 +12,7 @@ import (
 )
 
 // FileName is where the file sits on any install medium, and in the
-// installed /etc/microshift-installer.
+// installed /etc/amorce.
 const FileName = "site.yaml"
 
 type File struct {
@@ -278,7 +278,7 @@ func merge(d, m Answers) Answers {
 func Marshal(f *File) ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteString("# Written by the installer. Add machines, then make media with:\n")
-	b.WriteString("#   installer iso --site site.yaml --image ...\n")
+	b.WriteString("#   amorce iso --site site.yaml --image ...\n")
 	enc := yaml.NewEncoder(&b)
 	enc.SetIndent(2)
 	if err := enc.Encode(f); err != nil {

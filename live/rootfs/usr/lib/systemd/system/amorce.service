@@ -3,7 +3,7 @@ Description=Installer wizard on the consoles
 After=NetworkManager.service systemd-vconsole-setup.service
 
 [Service]
-ExecStart=/usr/bin/installer run
+ExecStart=/usr/bin/amorce run
 Restart=always
 RestartSec=1
 

@@ -6,8 +6,8 @@ here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
 out=${OUT:?set OUT to a work directory}
 vm=$1 port=$2
-podman build -q -t localhost/microshift-installer:dev "$repo" >/dev/null
-podman run --rm -v "$out:/out:Z" localhost/microshift-installer:dev iso --out /out/installer.iso >/dev/null
+podman build -q -t localhost/amorce:dev "$repo" >/dev/null
+podman run --rm -v "$out:/out:Z" localhost/amorce:dev iso --out /out/installer.iso >/dev/null
 export LIBVIRT_DEFAULT_URI=qemu:///system
 kill "$(cat "$STATE/$vm/bridge.pid" 2>/dev/null)" 2>/dev/null || true
 if [ "${3:-}" = fresh ]; then

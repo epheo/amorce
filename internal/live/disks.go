@@ -91,7 +91,7 @@ func (s *System) mediaDisks() map[string]bool {
 			}
 		}
 	}
-	labels, _ := filepath.Glob("/dev/disk/by-label/MSPAYLOAD*")
+	labels, _ := filepath.Glob("/dev/disk/by-label/AMORCE-*")
 	for _, l := range labels {
 		if t, err := filepath.EvalSymlinks(l); err == nil {
 			skip[parentDisk(t)] = true

@@ -6,7 +6,7 @@ Conflicts=getty@tty1.service
 After=systemd-user-sessions.service plymouth-quit-wait.service getty@tty1.service
 
 [Service]
-ExecStart=/usr/bin/installer console
+ExecStart=/usr/bin/amorce console
 Restart=always
 RestartSec=2
 

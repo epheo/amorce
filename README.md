@@ -6,27 +6,34 @@ Screen mockups: the "Installer TUI UX" canvas.
 
 ## Use
 
-```
-make image
-mkdir -p out
-podman run --rm -v $PWD/out:/out:Z localhost/microshift-installer:dev \
-  iso --out /out/stornas.iso --image ghcr.io/epheo/stornas-os:latest
-```
-
-- Boot the ISO (UEFI) from a CD, USB stick or BMC virtual media; the wizard starts on the screen and on the serial console.
+- One ISO, `amorce.iso`, holds every purpose's image: boot it and pick what to install, with no network needed.
+- Planned: published at https://dotvirt.io/amorce.iso; until then, build it (Build media, below).
+- Boot it (UEFI) from a USB stick or BMC virtual media; the wizard starts on the screen and on the serial console.
 - Keys are listed on every screen; F12 opens a shell; alt+F2 has another.
 - The boot menu has a second entry with the normal console look.
-- `installer demo` runs the wizard on a fake machine in any terminal.
+- `amorce demo` runs the wizard on a fake machine in any terminal.
 
-Many machines: every install keeps its answers in `/etc/microshift-installer/site.yaml`.
+Many machines: every install keeps its answers in `/etc/amorce/site.yaml`.
 Add machines to that file, then make small site media to boot beside the same ISO:
 
 ```
-podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/microshift-installer:dev \
+podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/amorce:dev \
   iso --payload-only --site /in/site.yaml --out /out/site.iso
 ```
 
 - `--site` on the main ISO works too; site media keep that ISO generic.
+
+## Build media
+
+```
+make image
+mkdir -p out
+podman run --rm -v $PWD/out:/out:Z localhost/amorce:dev iso --out /out/amorce.iso \
+  --image ghcr.io/epheo/microshift:latest --image ghcr.io/epheo/stornas-os:latest
+```
+
+- Every image goes in one OCI layout on the media, so layers they share are stored once.
+- Images built from the same distro build share almost all of it.
 
 ## Goal
 
@@ -87,7 +94,7 @@ reserved-users admin;anonymous                             (names its accounts o
 One image, two jobs:
 
 - Booted from the ISO, it is the live system that runs the wizard.
-- Run as a container, it writes that ISO: `installer iso` squashes its own root and adds the images.
+- Run as a container, it writes that ISO: `amorce iso` squashes its own root and adds the images.
 - No repo builds or hosts ISOs; anyone with podman makes media for any bootc image, including their own derived ones.
 - No release asset limit applies: stornas alone is 2.3 GB.
 
@@ -106,13 +113,13 @@ Wizard:
 - The media's `console=` arguments become kernel arguments of the installed system.
 - Then the wizard writes the new /etc: NetworkManager profiles, hostname, keymap, the data plan.
 - New files get labels from the installed policy (`setfiles -c`): it knows types the live policy lacks.
-- The install log is kept in the installed `/var/log/microshift-installer.log`.
+- The install log is kept in the installed `/var/log/amorce.log`.
 
 ## Media
 
-- ISO labeled MSINST; UEFI with CentOS's signed shim, grub and kernel, so it boots with Secure Boot on.
+- ISO labeled AMORCE; UEFI with CentOS's signed shim, grub and kernel, so it boots with Secure Boot on.
 - `images/<name>`: one OCI layout per purpose; `images/purposes.json` holds their descriptions, read from labels when the ISO is written.
-- Media labeled MSPAYLOAD* are read too, so images can sit beside the installer (`iso --payload-only`).
+- Media labeled AMORCE-* are read too, so images can sit beside the installer (`iso --payload-only`).
 - Progress during the copy is bytes read from the media against the image's compressed size.
 - At scale: Redfish mounts the same ISO on every BMC; the site file holds each machine's answers.
 
@@ -146,7 +153,7 @@ Unattended, when a site file names the machine:
 - Reports go one way: the first machine never sends commands to installers.
 - Reports never block an install; a send that fails is retried at the next change.
 - TLS on port 9190; the token never crosses the network (see Trust).
-- `installer machines` prints the board as JSON, on any machine holding the site file.
+- `amorce machines` prints the board as JSON, on any machine holding the site file.
 
 ## Join
 
@@ -168,7 +175,7 @@ The distro has two profiles: controller, the default, runs its own cluster; work
 
 ## Installed console
 
-The distro ships this binary; `installer console` takes tty1 of every installed machine.
+The distro ships this binary; `amorce console` takes tty1 of every installed machine.
 
 - This machine: address, health (systemd's), serial number, the image updates come from.
 - What the purpose tells its admins: every `issue.d/*.issue` file, wrapped, never cut; stornas puts its web address, fingerprint and first password there.
@@ -186,14 +193,14 @@ The distro ships this binary; `installer console` takes tty1 of every installed 
 Distro, in its Containerfile:
 
 ```
-FROM ghcr.io/epheo/microshift-installer:<tag> AS installer
+FROM ghcr.io/epheo/amorce:<tag> AS installer
 ...
-COPY --from=installer /usr/bin/installer /usr/bin/installer
-COPY --from=installer /usr/share/microshift-installer /usr/share/microshift-installer
-RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.service /usr/lib/systemd/system/ && \
-    install -m 644 /usr/share/microshift-installer/dist/microshift-installer.xml /usr/lib/firewalld/services/ && \
-    firewall-offline-cmd --zone=public --add-service=microshift-installer && \
-    systemctl enable installer-console.service && \
+COPY --from=installer /usr/bin/amorce /usr/bin/amorce
+COPY --from=installer /usr/share/amorce /usr/share/amorce
+RUN install -m 644 /usr/share/amorce/dist/amorce-console.service /usr/lib/systemd/system/ && \
+    install -m 644 /usr/share/amorce/dist/amorce.xml /usr/lib/firewalld/services/ && \
+    firewall-offline-cmd --zone=public --add-service=amorce && \
+    systemctl enable amorce-console.service && \
     systemctl mask getty@tty1.service
 ```
 
@@ -205,7 +212,7 @@ RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.servic
 - The live system takes DHCP where it can; the wizard offers to keep that address as a fixed one.
 - Settings by hand: interface, VLAN, address, gateway, DNS, time servers (NTP); applied to the live system and tested.
 - Tests: carrier, address conflict (ARP), gateway (ARP), DNS (a query for localhost; any answer counts), NTP (one query, the clock left alone).
-- Time servers replace the image's public pool, which an air-gapped site never reaches: chrony.conf's `pool` lines are commented out and point at `/etc/microshift-installer/chrony`. Without any, the image's own stay, and DHCP's.
+- Time servers replace the image's public pool, which an air-gapped site never reaches: chrony.conf's `pool` lines are commented out and point at `/etc/amorce/chrony`. Without any, the image's own stay, and DHCP's.
 - bootc then keeps the edited chrony.conf: the image's later changes to it no longer apply. Intended: the site's servers stay.
 - Gateway probe: when the gateway is silent, ARP for it untagged and on each candidate VLAN; the fix offered is where it answers.
 - Candidate VLANs: the port VLAN from LLDP, then 802.1Q tags seen in a few seconds of capture.
@@ -225,7 +232,7 @@ RUN install -m 644 /usr/share/microshift-installer/dist/installer-console.servic
 - Disks left out stay unclaimed; the purpose's UI can use them later.
 - Why: the stornas operator owns node state; the installer must not duplicate it.
 
-Plan file, `/etc/microshift-installer/data-disks.json`:
+Plan file, `/etc/amorce/data-disks.json`:
 
 ```json
 {"version": 1, "layout": "pairs", "pools": [
@@ -297,7 +304,7 @@ ADMIN_EMAIL=alice@example.com
 ## Secure Boot
 
 - The distro builds the DRBD module; Secure Boot refuses it unless it is signed by a key the kernel trusts.
-- The distro signs it in CI with the project key, and ships the certificate as `/usr/lib/microshift-installer/mok.der` (branch kmod/sign-drbd, waiting for the key).
+- The distro signs it in CI with the project key, and ships the certificate as `/usr/lib/amorce/mok.der` (branch kmod/sign-drbd, waiting for the key).
 - When the image ships that certificate and Secure Boot is on, the installer queues it with `mokutil --import` and shows the one-time password on Ready.
 - An unattended install puts that password on the first machine's board: a person answers MokManager once, at the machine's screen.
 - The kernel trusts an enrolled key for modules only in its `.machine` keyring: a CA certificate that signs certificates and nothing else.
@@ -311,7 +318,7 @@ One layout, three looks:
 
 - Styled console: tty1 on the monitor and BMC screen.
 - Normal console: stock colors and font; the serial console, and tty1 whenever styling fails.
-- True color: `installer demo` in a modern terminal, and the console over SSH.
+- True color: `amorce demo` in a modern terminal, and the console over SSH.
 - The normal console is the baseline: every screen works there.
 - Meaning never rests on color alone: every state has a symbol and a word.
 
@@ -393,7 +400,7 @@ machines:
 - Machines match by serial number (DMI; placeholders like "To Be Filled By O.E.M." are ignored) or any MAC.
 - Unknown fields are errors, so a typo never reads as an unanswered question; `iso --site` checks the file first.
 - `disks.data`: auto (the purpose's plan) or none. `disks.erase`: blank (default) or any.
-- Read from any install medium's root: the ISO, or media labeled MSPAYLOAD*.
+- Read from any install medium's root: the ISO, or media labeled AMORCE-*.
 - Every install writes one for its own machine, shared settings under defaults.
 - `ssh_authorized_keys` go to root through bootc; the wizard has no screen for them.
 - A worker needs `report`; the first machine cannot be one.
@@ -403,7 +410,7 @@ machines:
 ## Testing
 
 - `make test`: plan proposals, LLDP parsing, NetworkManager profiles, the font, site files and unattended runs on the demo machine, and every screen fitting 100x30 and 80x24 in every look.
-- `installer screens DIR`: every demo screen as terminal output, to compare with the mockups.
+- `amorce screens DIR`: every demo screen as terminal output, to compare with the mockups.
 - `test/render`: turns that output into PNGs through a terminal emulator.
 - `test/vm/e2e.sh VM PORT`: a fresh libvirt VM boots the ISO; the wizard is driven over the serial console; the installed system must serve its web UI.
 - `SB=on test/vm/e2e.sh VM PORT`: the same with Secure Boot enforced; the warnings must show.
@@ -457,7 +464,6 @@ Designed during implementation, not in the mockups:
 - A 16x32 font drawn for that size rather than doubled.
 - The site token never expires; rotating it means a new site file for every machine.
 - Settings at the console need no login; a site that wants one could ask for it in the site file.
-- Rename the binary, image and paths to amorce? The distro and stornas already read `/etc/microshift-installer` and `/usr/lib/microshift-installer`.
 
 ## License
 

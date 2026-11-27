@@ -17,6 +17,6 @@ FROM ${BASE}
 COPY --from=sign /signed/ /tmp/signed/
 RUN kver="$(ls /usr/lib/modules)" && \
     install -m 644 /tmp/signed/*.ko "/usr/lib/modules/${kver}/extra/drbd/" && \
-    install -D -m 644 /tmp/signed/mok.der /usr/lib/microshift-installer/mok.der && \
+    install -D -m 644 /tmp/signed/mok.der /usr/lib/amorce/mok.der && \
     rm -rf /tmp/signed
 LABEL io.github.epheo.installer.secure-boot=on

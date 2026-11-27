@@ -32,7 +32,7 @@ func consoleCmd(args []string) error {
 	fs.Var(&ttys, "tty", "console device, repeatable (default /dev/tty1)")
 	lookName := fs.String("look", "", "force styled, normal or true")
 	sitePath := fs.String("site", "/"+live.SitePath, "this machine's site file")
-	stateDir := fs.String("state", "/var/lib/microshift-installer", "the first machine's board and key")
+	stateDir := fs.String("state", "/var/lib/amorce", "the first machine's board and key")
 	fs.Parse(args)
 	if len(ttys) == 0 {
 		ttys = ttyList{"/dev/tty1"}

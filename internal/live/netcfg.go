@@ -14,7 +14,7 @@ import (
 )
 
 // conName is the live system's connection while the wizard runs.
-const conName = "installer"
+const conName = "amorce"
 
 // Network waits for DHCP on any linked NIC, then tests what it got.
 func (s *System) Network(ctx context.Context) engine.NetReport {

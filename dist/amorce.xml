@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <service>
-  <short>Installer console</short>
+  <short>amorce console</short>
   <description>The site's machines report to, and join, the first machine's console on 9190; root's SSH keys reach every machine's console on 2222.</description>
   <port protocol="tcp" port="9190"/>
   <port protocol="tcp" port="2222"/>
