@@ -32,7 +32,9 @@ create() { # name port [secureboot [virt-install args...]]
   fi
   local fw="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=no"
   [ "$sb" = on ] && fw="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes"
-  virt-install -q --name "$n" --memory 8192 --vcpus 4 --osinfo centos-stream10 \
+  # OSINFO: an older osinfo-db lacks centos-stream10. CPUSET pins the VM,
+  # emulator included, off CPUs the host keeps for other work.
+  virt-install -q --name "$n" --memory 8192 --vcpus "4${CPUSET:+,cpuset=$CPUSET}" --osinfo "${OSINFO:-centos-stream10}" \
     --boot "$fw" --controller scsi,model=virtio-scsi "${args[@]}" \
     --network network=default,model=virtio --tpm none \
     --serial "tcp,host=127.0.0.1:$port,mode=bind,protocol.type=raw" \

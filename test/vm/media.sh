@@ -2,6 +2,7 @@
 # media.sh BASE...: builds the installer ISO, and a payload ISO of the OS
 # images BASE with the installed console added as the distro adds it;
 # uploads both for vm.sh, the payload as PAYLOAD. OUT is a work directory.
+# CONSOLE=image keeps the console BASE carries: the image as published.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
@@ -12,6 +13,11 @@ podman build -q -t localhost/amorce:dev "$repo" >/dev/null
 images=()
 for base in "$@"; do
   name=$(basename "${base%:*}")
+  if [ "${CONSOLE:-}" = image ]; then
+    podman save --format oci-archive -o "$out/$name.tar" "$base"
+    images+=(--image "oci-archive:/out/$name.tar")
+    continue
+  fi
   os=localhost/$name:console
   # The console layer is built here, so the image no longer says which
   # registry it updates from; a pulled base does.
