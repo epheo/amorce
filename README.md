@@ -40,7 +40,7 @@ podman run --rm -v $PWD/out:/out:Z -v $PWD:/in:ro,Z localhost/microshift-install
 
 - MicroShift: ghcr.io/epheo/microshift; MicroShift, r-drbd, portail. Labels on the distro's branch installer/purpose.
 - Storage: ghcr.io/epheo/stornas-os; shares, iSCSI, replication. Labels on stornas's branch installer-plan.
-- Virtualization: the dotvirt appliance; KubeVirt, CDI, Argo CD, dotvirt, a git forge, Kanidm if chosen.
+- Virtualization: the dotvirt appliance; KubeVirt, CDI, Argo CD, dotvirt, a git forge, Kanidm if chosen; it needs a domain.
 - Planned: every appliance image lives in this repo, under `appliances/`: the dotvirt appliance (written by dotvirt's maintainers) and stornas-os, which moves here from stornas.
 - Each image describes itself in labels; the installer hard-codes no purpose.
 - Each purpose works without the installer: the installer only feeds its own mechanisms (the distro's below).
@@ -56,7 +56,7 @@ includes    Web UI on port 30080;SMB and NFS shares;...   (';' separated)
 data-disks  pairs | thin | none
 target      ghcr.io/epheo/stornas-os:latest                (updates, for local builds)
 secure-boot off                                            (cannot run with Secure Boot on)
-domain      console;git                                    (names it serves under a site's wildcard domain)
+domain      console;git                                    (names it serves under the site's domain, which it then needs)
 identity    kanidm:idm                                     (a sign-in provider it can install, and its name)
 settings    /etc/dotvirt/appliance.env                     (where the names and sign-in go; under /etc)
 reserved-users admin;anonymous                             (names its accounts or its web pages already use)
@@ -242,9 +242,10 @@ Plan file, `/etc/microshift-installer/data-disks.json`:
 
 For an image labeled `domain`, the Name step also asks:
 
-- Domain, optional: the site's DNS points the names under it at this machine, by a wildcard or one record each. Empty: it is reached by its address.
+- Domain: the site's DNS points the names under it at this machine, by a wildcard or one record each.
+- Required: browsers send an address's cookies to all its ports, so every web app on one address receives the others' sign-in.
 - Sign-in, for an image labeled `identity`: a token from the console, or the image's provider.
-- The provider needs a domain, and a first admin: a name, a full name (optional), an email.
+- The provider needs a first admin: a name, a full name (optional), an email.
 - Leaving the domain asks DNS for every name the image serves there (`console.<domain>`, ...).
 - A name that does not point at the machine's address warns, on Name and on Confirm; it never blocks: the site may set DNS later.
 - A domain on an address left to DHCP warns too: a new lease breaks the names until DNS follows.
@@ -273,7 +274,9 @@ ADMIN_EMAIL=alice@example.com
 ```
 
 - One KEY=value per line, split at the first `=`, the value verbatim: no quotes, escapes or comments.
-- `IDENTITY=none` and no `ADMIN_` lines for token sign-in; an empty `DOMAIN`, or no file, means by address.
+- `IDENTITY=none` and no `ADMIN_` lines for token sign-in.
+- `DOMAIN` is never empty.
+- No file: a worker, or a system the installer did not install; the dotvirt appliance sets nothing up until the file exists.
 - `ADMIN_DISPLAY` is left out when empty.
 - UTF-8; every line ends in LF, the last one too.
 - A worker gets no file.
@@ -366,7 +369,7 @@ defaults:
   purpose: storage                 # an id from the media; optional with one purpose
   keyboard: fr
   network: {interface: eno1, vlan: 110, gateway: 10.20.120.1, dns: [10.20.0.53], ntp: [10.20.0.53]}
-  domain: virt.example.com         # for an image that serves names; empty: by address
+  domain: virt.example.com         # required by an image that serves names
   identity: kanidm                 # its sign-in provider, or none for a token
   admin: {user: alice, display: Alice Martin, email: alice@example.com}
   disks: {system: auto, data: auto, erase: blank}

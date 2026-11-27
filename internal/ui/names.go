@@ -92,8 +92,12 @@ func (m *Model) keyNames(s string, k tea.KeyPressMsg) {
 			f.err, f.focus = msg, rowName
 			return
 		}
-		if msg := m.eng.SetNames(m.ctx, f.names(p)); msg != "" {
+		n := f.names(p)
+		if msg := m.eng.SetNames(m.ctx, n); msg != "" {
 			f.err = msg
+			if n.Domain == "" || engine.CheckDomain(n.Domain, p.Served()) != "" {
+				f.focus = rowDomain
+			}
 			return
 		}
 		m.eng.SetHostname(name)
@@ -143,7 +147,7 @@ func (m *Model) viewNames() screen {
 		case rowDomain:
 			left = append(left, label("Domain")+m.inputView(f.in[r], f.focus == r))
 			left = append(left, m.dnsLines(p, f.names(p))...)
-			if engine.CheckDomain(f.names(p).Domain, p.Names) == "" {
+			if engine.CheckDomain(f.names(p).Domain, p.Served()) == "" {
 				left = append(left, m.dhcpWarning(f.names(p).Domain)...)
 			}
 		case rowSignIn:
@@ -169,7 +173,7 @@ func (m *Model) viewNames() screen {
 	}
 	hints := map[int]string{
 		rowName:    "Lowercase letters, digits and dashes.",
-		rowDomain:  "Optional; DNS sends *.domain here. Empty: by address.",
+		rowDomain:  "The site's DNS points the names under it here.",
 		rowSignIn:  "A token from the console, or " + provider + " accounts.",
 		rowUser:    "2 to 32 of a to z and 0 to 9, a letter first.",
 		rowDisplay: "Optional.",
@@ -195,7 +199,7 @@ func (m *Model) dnsLines(p engine.Purpose, n engine.Names) []string {
 	t := m.t
 	st := m.st
 	names := engine.CheckedNames(p, n)
-	if len(names) == 0 || engine.CheckDomain(n.Domain, p.Names) != "" {
+	if len(names) == 0 || engine.CheckDomain(n.Domain, p.Served()) != "" {
 		return nil
 	}
 	pad := strings.Repeat(" ", 13)
@@ -229,9 +233,6 @@ func (m *Model) dnsLines(p engine.Purpose, n engine.Names) []string {
 func (m *Model) namesSummary() (domain, signIn string) {
 	n := m.st.Names
 	domain, signIn = n.Domain, "a token from the console"
-	if domain == "" {
-		domain = "none: by its address"
-	}
 	if n.Identity != "" {
 		signIn = engine.ProviderName(n.Identity) + ", first admin " + n.Admin.User
 	}

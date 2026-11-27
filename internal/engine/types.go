@@ -93,8 +93,8 @@ type Purpose struct {
 	Bytes int64
 	// NeedsSecureBootOff is set when the image cannot run with Secure Boot on.
 	NeedsSecureBootOff bool
-	// Names are what the image serves under a wildcard domain the site
-	// points at the machine; none means it is reached by its address only.
+	// Names are what the image serves under the domain the site points at
+	// the machine; with any, the install needs a domain.
 	Names []string
 	// Identity is a sign-in provider the image can install, served under
 	// the domain as IdentityName; it needs a domain.
@@ -111,7 +111,7 @@ func (p Purpose) OffersNames() bool { return len(p.Names) > 0 }
 
 // Names are the answers to an image that offers names.
 type Names struct {
-	// Domain is empty for a machine reached by its address.
+	// Domain is empty only for an image that serves no names, or a worker.
 	Domain string
 	// Identity is the purpose's provider, or empty for token sign-in.
 	Identity string

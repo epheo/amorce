@@ -147,6 +147,18 @@ func TestSiteWorker(t *testing.T) {
 	}
 }
 
+// A worker serves the first machine's names, so it installs with none.
+func TestSiteNamesWorker(t *testing.T) {
+	file := strings.Replace(header, "site: lab\n", "site: lab\nreport: {address: 10.20.120.10, token: tok}\n", 1) +
+		"    name: virt-02\n    purpose: virtualization\n    address: 10.20.120.12/24\n    profile: worker\n"
+	st := run(t, file, func(s engine.State) bool {
+		return s.Step == engine.StepReady || (s.Site != nil && s.Site.Problem != "")
+	})
+	if st.Step != engine.StepReady || st.Names != (engine.Names{}) {
+		t.Fatalf("step %d, names %+v, problem %q", st.Step, st.Names, st.Site.Problem)
+	}
+}
+
 // The site file answers the names: the domain, the identity provider and
 // its first admin, and the time servers, for the next machines too.
 func TestSiteNames(t *testing.T) {

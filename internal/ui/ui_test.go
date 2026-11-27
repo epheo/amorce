@@ -286,8 +286,8 @@ func TestSettings(t *testing.T) {
 	}
 }
 
-// The names form at its fullest fits both sizes, shows what DNS answers,
-// and hands checked names to the engine.
+// The names form needs a domain, fits both sizes at its fullest, shows what
+// DNS answers, and hands checked names to the engine.
 func TestNamesForm(t *testing.T) {
 	for _, size := range [][2]int{{100, 30}, {80, 24}} {
 		ctx := context.Background()
@@ -316,6 +316,11 @@ func TestNamesForm(t *testing.T) {
 		}
 		tab := func() { m.Update(tea.KeyPressMsg{Code: tea.KeyTab}) }
 		tab()
+		tab()
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if f := m.names; !strings.Contains(f.err, "needs a domain") || f.focus != rowDomain {
+			t.Fatalf("%v: no domain: %q, row %d", size, f.err, f.focus)
+		}
 		key("lab.example.com")
 		tab()
 		m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})

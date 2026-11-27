@@ -76,8 +76,8 @@ type Answers struct {
 	// Profile is the distro's: controller, the default, runs its own
 	// cluster; worker joins the first machine's.
 	Profile string `yaml:"profile,omitempty"`
-	// Domain is a wildcard the site's DNS points at this machine, for an
-	// image that serves names; empty, it is reached by its address.
+	// Domain is where the site's DNS points this machine's names; an image
+	// that serves names requires it.
 	Domain string `yaml:"domain,omitempty"`
 	// Identity is the sign-in provider the image installs; it needs a domain.
 	Identity string `yaml:"identity,omitempty"`

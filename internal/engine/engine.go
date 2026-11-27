@@ -310,8 +310,11 @@ func (e *Engine) Install(ctx context.Context, confirm string) error {
 	if !ok {
 		return fmt.Errorf("no purpose chosen")
 	}
-	if msg := CheckNames(p, s.Names); msg != "" {
-		return fmt.Errorf("%s", msg)
+	// A worker serves the first machine's names, not its own.
+	if s.Profile != site.Worker {
+		if msg := CheckNames(p, s.Names); msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
 	}
 	req := InstallRequest{
 		Machine:  s.Machine,

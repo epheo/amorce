@@ -61,7 +61,7 @@ func TestCheckNames(t *testing.T) {
 		n    Names
 		want string // a part of the message; empty means accepted
 	}{
-		{virt, Names{}, ""},
+		{virt, Names{}, "needs a domain"},
 		{virt, Names{Domain: "virt.example.com"}, ""},
 		{virt, Names{Domain: "virt.example.com", Identity: "kanidm", Admin: alice}, ""},
 		{virt, Names{Identity: "kanidm", Admin: alice}, "needs a domain"},
@@ -82,8 +82,8 @@ func TestCheckNames(t *testing.T) {
 // The image parses the file by splitting at the first =, so it carries no
 // comments, quotes or keys it does not know.
 func TestSettingsFile(t *testing.T) {
-	if got := SettingsFile(Names{}); got != "DOMAIN=\nIDENTITY=none\n" {
-		t.Errorf("by address:\n%s", got)
+	if got := SettingsFile(Names{Domain: "virt.example.com"}); got != "DOMAIN=virt.example.com\nIDENTITY=none\n" {
+		t.Errorf("with a token:\n%s", got)
 	}
 	got := SettingsFile(Names{Domain: "virt.example.com", Identity: "kanidm",
 		Admin: Admin{User: "alice", Display: "Alice Martin", Email: "alice@example.com"}})

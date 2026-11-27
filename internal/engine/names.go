@@ -35,7 +35,8 @@ func dnsName(d string) string {
 }
 
 // CheckDomain explains what is wrong with domain for an image serving
-// names under it, or returns "". Empty is an answer: by address.
+// names under it, or returns "". Empty passes: it is checked as typed, and
+// CheckNames requires one.
 func CheckDomain(domain string, names []string) string {
 	switch {
 	case domain == "":
@@ -53,7 +54,7 @@ func CheckDomain(domain string, names []string) string {
 		}
 	}
 	if _, err := netip.ParseAddr(domain); err == nil {
-		return "That is an address: leave the domain empty to use it."
+		return "That is an address: give a domain, like virt.example.com."
 	}
 	if msg := dnsName(domain); msg != "" {
 		return msg
@@ -128,6 +129,15 @@ func CheckNTP(servers []string) string {
 	return ""
 }
 
+// Served are the names the image may serve under the domain, its provider's
+// included.
+func (p Purpose) Served() []string {
+	if p.IdentityName == "" {
+		return p.Names
+	}
+	return append(slices.Clone(p.Names), p.IdentityName)
+}
+
 // ProviderName is how the screens name an identity provider.
 func ProviderName(id string) string {
 	if id == "" {
@@ -144,7 +154,10 @@ func CheckNames(p Purpose, n Names) string {
 		}
 		return ""
 	}
-	if msg := CheckDomain(n.Domain, append(slices.Clone(p.Names), p.IdentityName)); msg != "" {
+	if n.Domain == "" {
+		return p.Name + " needs a domain: the names it serves live under it."
+	}
+	if msg := CheckDomain(n.Domain, p.Served()); msg != "" {
 		return msg
 	}
 	if n.Identity == "" {
@@ -153,11 +166,8 @@ func CheckNames(p Purpose, n Names) string {
 		}
 		return ""
 	}
-	switch {
-	case n.Identity != p.Identity:
+	if n.Identity != p.Identity {
 		return p.Name + " offers no " + ProviderName(n.Identity) + "."
-	case n.Domain == "":
-		return ProviderName(n.Identity) + " needs a domain."
 	}
 	if msg := CheckAdminUser(n.Admin.User, p.ReservedUsers); msg != "" {
 		return msg
