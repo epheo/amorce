@@ -88,6 +88,8 @@ shot() { # name out.png
 }
 
 bridge() { # name port [cols rows]
+  # A bridge that dies at start leaves a test waiting out its timeouts.
+  $py -c 'import pyte' || { echo "bridge: $py has no pyte; set PY" >&2; exit 1; }
   mkdir -p "$state/$1"
   nohup $py "$here/serialbridge.py" --port "$2" --dir "$state/$1" --cols "${3:-80}" --rows "${4:-24}" \
     > "$state/$1/bridge.log" 2>&1 &
