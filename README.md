@@ -75,6 +75,7 @@ reserved-users admin;anonymous                             (names its accounts o
 - Why: labels are inherited, so an image built FROM stornas-os would otherwise update back to stornas-os.
 - `iso` prints each image's name and update source.
 - `iso` refuses an image whose `domain`, `identity` and `settings` labels disagree: an identity needs names, names need a settings file.
+- `iso` refuses two images with the same `id`: the wizard lists one purpose per id, and an image built FROM another inherits its id until it labels its own.
 
 ## Non-goals for v1
 

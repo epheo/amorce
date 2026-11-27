@@ -71,6 +71,13 @@ func isoCmd(args []string) error {
 		if err != nil {
 			return err
 		}
+		// The wizard lists one purpose per id: a second would be hidden.
+		// An image built FROM another inherits its id until it labels its own.
+		for _, o := range ix.Images {
+			if o.ID == im.ID {
+				return fmt.Errorf("%s: id %s is already on the media; label it %sid", ref, im.ID, media.LabelPrefix)
+			}
+		}
 		fmt.Printf("%s: installs as %s, updates from %s\n", ref, im.Name, im.Target)
 		ix.Images = append(ix.Images, im)
 	}
