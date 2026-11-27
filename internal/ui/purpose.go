@@ -7,9 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/link"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/link"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // purposeItem is one choice on Purpose: a new cluster of a purpose, or

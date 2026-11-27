@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/epheo/microshift-installer/internal/link"
+	"github.com/epheo/amorce/internal/link"
 )
 
 func TestSendAndBoard(t *testing.T) {

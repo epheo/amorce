@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/link"
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/link"
+	"github.com/epheo/amorce/internal/report"
 )
 
 func (s *System) Clusters(ctx context.Context, found func(engine.Cluster)) {

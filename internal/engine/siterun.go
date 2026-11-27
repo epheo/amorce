@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // SiteRun is an install answered by the site file. It checks every answer

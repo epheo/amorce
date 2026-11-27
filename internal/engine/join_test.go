@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/demo"
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/demo"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/site"
 )
 
 func waitFor(t *testing.T, e *engine.Engine, want func(engine.State) bool) engine.State {

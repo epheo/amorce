@@ -12,12 +12,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/epheo/microshift-installer/internal/demo"
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/live"
-	"github.com/epheo/microshift-installer/internal/report"
-	"github.com/epheo/microshift-installer/internal/site"
-	"github.com/epheo/microshift-installer/internal/ui"
+	"github.com/epheo/amorce/internal/demo"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/live"
+	"github.com/epheo/amorce/internal/report"
+	"github.com/epheo/amorce/internal/site"
+	"github.com/epheo/amorce/internal/ui"
 )
 
 const usage = `usage:

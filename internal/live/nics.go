@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 func readSys(path string) string {

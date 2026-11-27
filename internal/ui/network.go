@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 type netAction int

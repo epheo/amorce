@@ -1,4 +1,4 @@
-module github.com/epheo/microshift-installer
+module github.com/epheo/amorce
 
 go 1.26.10
 

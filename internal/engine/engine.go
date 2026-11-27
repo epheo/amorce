@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // State is a snapshot; frontends render it and never mutate it.

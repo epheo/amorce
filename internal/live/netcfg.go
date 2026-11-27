@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 // conName is the live system's connection while the wizard runs.

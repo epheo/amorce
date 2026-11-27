@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/epheo/microshift-installer/internal/font"
+	"github.com/epheo/amorce/internal/font"
 )
 
 // terminus is the text font the console fonts start from; kbd ships it.

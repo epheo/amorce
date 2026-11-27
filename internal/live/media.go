@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/media"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/media"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // liveRoot is where dmsquash-live mounts the boot media.

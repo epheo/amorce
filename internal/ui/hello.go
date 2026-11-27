@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 type helloOption struct {

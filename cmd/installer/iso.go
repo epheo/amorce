@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/epheo/microshift-installer/internal/media"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/media"
+	"github.com/epheo/amorce/internal/site"
 )
 
 type strList []string

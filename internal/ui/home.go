@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/report"
 )
 
 // HomeInfo is what the installed console shows; Options.Home refreshes it.

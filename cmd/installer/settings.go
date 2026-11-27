@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/live"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/live"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // settings is the console's F2 on this machine. root is "/" but in tests.

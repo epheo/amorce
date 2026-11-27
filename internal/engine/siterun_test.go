@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/demo"
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/link"
-	"github.com/epheo/microshift-installer/internal/report"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/demo"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/link"
+	"github.com/epheo/amorce/internal/report"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // firstMachine serves a board the way the first machine's console does.

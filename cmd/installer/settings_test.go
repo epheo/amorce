@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/epheo/microshift-installer/internal/live"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/live"
+	"github.com/epheo/amorce/internal/site"
 )
 
 const kept = `report: {address: 10.20.120.11, token: t}

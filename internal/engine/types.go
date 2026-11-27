@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/report"
 )
 
 // Step is the wizard screen every frontend shows.

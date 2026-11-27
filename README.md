@@ -1,4 +1,4 @@
-# microshift-installer
+# amorce
 
 Boot media and console wizard that install any image built FROM ghcr.io/epheo/microshift.
 Status: in VMs, attended installs on styled and normal consoles, unattended installs from a site file, every install reporting to the first machine's console, and workers joining its cluster.
@@ -397,4 +397,8 @@ Designed during implementation, not in the mockups:
 - A 16x32 font drawn for that size rather than doubled.
 - The site token never expires; rotating it means a new site file for every machine.
 - Settings at the console need no login; a site that wants one could ask for it in the site file.
-- Repo name.
+- Rename the binary, image and paths to amorce? The distro and stornas already read `/etc/microshift-installer` and `/usr/lib/microshift-installer`.
+
+## License
+
+Apache License 2.0: see [LICENSE](LICENSE).

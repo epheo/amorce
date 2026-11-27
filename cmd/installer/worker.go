@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/report"
 )
 
 // Written by add-node: the role marker, and the kubelet's own credentials.

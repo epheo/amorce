@@ -17,8 +17,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // PlanPath is where the data disk plan lands in the installed /etc; the

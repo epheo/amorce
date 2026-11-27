@@ -18,10 +18,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/epheo/microshift-installer/internal/console"
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/live"
-	"github.com/epheo/microshift-installer/internal/ui"
+	"github.com/epheo/amorce/internal/console"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/live"
+	"github.com/epheo/amorce/internal/ui"
 )
 
 // fontDir holds the console fonts the image ships, by height.

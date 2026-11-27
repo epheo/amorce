@@ -15,8 +15,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/site"
 )
 
 type System struct {

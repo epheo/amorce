@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 func (m *Model) keyInstalling(s string) {

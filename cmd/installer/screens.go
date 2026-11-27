@@ -9,9 +9,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/epheo/microshift-installer/internal/demo"
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/ui"
+	"github.com/epheo/amorce/internal/demo"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/ui"
 )
 
 // screens renders every screen of the demo machine to dir, one file per

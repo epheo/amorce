@@ -17,11 +17,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/console"
-	"github.com/epheo/microshift-installer/internal/live"
-	"github.com/epheo/microshift-installer/internal/report"
-	"github.com/epheo/microshift-installer/internal/site"
-	"github.com/epheo/microshift-installer/internal/ui"
+	"github.com/epheo/amorce/internal/console"
+	"github.com/epheo/amorce/internal/live"
+	"github.com/epheo/amorce/internal/report"
+	"github.com/epheo/amorce/internal/site"
+	"github.com/epheo/amorce/internal/ui"
 )
 
 // consoleCmd is the installed system's console: what this machine is, what

@@ -3,7 +3,7 @@ package ui
 import (
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/report"
 )
 
 // DemoHome is the mockups' first machine, for the demo and the tests.

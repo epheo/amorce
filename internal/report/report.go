@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/link"
+	"github.com/epheo/amorce/internal/link"
 )
 
 // States a machine reports, in the order an install goes through them.

@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/site"
 )
 
 func TestSiteForRoundTrips(t *testing.T) {

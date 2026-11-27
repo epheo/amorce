@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // JoinState is an attended join: the words from the first machine's

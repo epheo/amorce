@@ -8,8 +8,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/report"
 )
 
 type System struct {

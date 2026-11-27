@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 type blockdev struct {

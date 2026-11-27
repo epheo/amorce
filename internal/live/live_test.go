@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/epheo/microshift-installer/internal/engine"
+	"github.com/epheo/amorce/internal/engine"
 )
 
 func tlv(typ int, v []byte) []byte {

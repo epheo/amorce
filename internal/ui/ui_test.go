@@ -11,9 +11,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/epheo/microshift-installer/internal/demo"
-	"github.com/epheo/microshift-installer/internal/engine"
-	"github.com/epheo/microshift-installer/internal/site"
+	"github.com/epheo/amorce/internal/demo"
+	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/site"
 )
 
 // Every step renders within the terminal at the mockups' size and at 80x24.

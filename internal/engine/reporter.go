@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/epheo/microshift-installer/internal/report"
+	"github.com/epheo/amorce/internal/report"
 )
 
 // reportLoop tells the first machine, once one is known, how this install

@@ -12,7 +12,7 @@ import (
 	"charm.land/wish/v2/activeterm"
 	bm "charm.land/wish/v2/bubbletea"
 
-	"github.com/epheo/microshift-installer/internal/ui"
+	"github.com/epheo/amorce/internal/ui"
 )
 
 // sshPort serves the console over SSH: the same screens, words and
