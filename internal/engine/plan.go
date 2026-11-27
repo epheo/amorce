@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // Data disk layouts, as a purpose's data-disks label names them; the
@@ -57,8 +58,12 @@ func ProposePlan(m Machine, p Purpose) DiskPlan {
 			return boolCmp(!a.SSD, !b.SSD)
 		case a.Size != b.Size:
 			return cmpU64(a.Size, b.Size)
+		case a.Stable() != b.Stable():
+			return boolCmp(!a.Stable(), !b.Stable())
 		}
-		return 0
+		// Kernel names can swap between starts; the same machine must get
+		// the same proposal at every start.
+		return strings.Compare(a.Path, b.Path)
 	})
 	for _, d := range disks {
 		if d.Size >= minSystemBytes && !d.Failing {
