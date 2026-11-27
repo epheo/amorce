@@ -49,7 +49,9 @@ func (s *System) Purposes(ctx context.Context) ([]engine.Purpose, error) {
 			out = append(out, engine.Purpose{
 				ID: im.ID, Name: im.Name, Summary: im.Summary, Includes: im.Includes,
 				DataDisks: im.DataDisks, Target: im.Target, Bytes: im.Bytes, NeedsSecureBootOff: im.SecureBoot == "off",
-				Source: fmt.Sprintf("oci:%s:%s", filepath.Join(root, "images", im.Layout), im.Tag),
+				Names: im.Names, Identity: im.Identity, IdentityName: im.IdentityName, Settings: im.Settings,
+				ReservedUsers: im.ReservedUsers,
+				Source:        fmt.Sprintf("oci:%s:%s", filepath.Join(root, "images", im.Layout), im.Tag),
 			})
 		}
 	}

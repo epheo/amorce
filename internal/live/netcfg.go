@@ -179,7 +179,16 @@ func (s *System) test(ctx context.Context, cfg engine.NetConfig) engine.NetRepor
 			}
 		}
 	}
-	s.logf("network %s vlan %d: gateway %v dns %v elsewhere %v", cfg.Address, cfg.VLAN, r.Gateway, r.DNS, r.GatewayVLANs)
+	if len(cfg.NTP) > 0 && r.Gateway != engine.CheckFailed {
+		r.NTP = engine.CheckFailed
+		for _, n := range cfg.NTP {
+			if ntpAnswers(ctx, n) {
+				r.NTP = engine.CheckOK
+				break
+			}
+		}
+	}
+	s.logf("network %s vlan %d: gateway %v dns %v ntp %v elsewhere %v", cfg.Address, cfg.VLAN, r.Gateway, r.DNS, r.NTP, r.GatewayVLANs)
 	return r
 }
 

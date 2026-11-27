@@ -74,3 +74,37 @@ func TestWorkerKeepsItsAddress(t *testing.T) {
 		t.Fatal("a worker may change its address")
 	}
 }
+
+// Time servers set at the console replace the image's; cleared, the
+// image's come back.
+func TestSetNetworkTimeServers(t *testing.T) {
+	s, root := settingsIn(t, kept)
+	conf := "pool 2.centos.pool.ntp.org iburst\nsourcedir /run/chrony-dhcp\n"
+	os.WriteFile(filepath.Join(root, "etc/chrony.conf"), []byte(conf), 0o644)
+	read := func(rel string) string {
+		b, _ := os.ReadFile(filepath.Join(root, rel))
+		return string(b)
+	}
+	a, _ := s.Network()
+	a.Network.NTP = []string{"10.20.0.53"}
+	if err := s.SetNetwork(a); err != nil {
+		t.Fatal(err)
+	}
+	if c := read("etc/chrony.conf"); !strings.Contains(c, "sourcedir /"+live.NTPDir) || strings.Contains(c, "\npool ") {
+		t.Errorf("chrony.conf:\n%s", c)
+	}
+	if src := read(live.NTPDir + "/installer.sources"); !strings.Contains(src, "server 10.20.0.53 iburst") {
+		t.Errorf("sources:\n%s", src)
+	}
+	a, _ = s.Network()
+	a.Network.NTP = nil
+	if err := s.SetNetwork(a); err != nil {
+		t.Fatal(err)
+	}
+	if c := read("etc/chrony.conf"); c != conf {
+		t.Errorf("chrony.conf after clearing:\n%s", c)
+	}
+	if _, err := os.Stat(filepath.Join(root, live.NTPDir, "installer.sources")); err == nil {
+		t.Errorf("sources kept after clearing")
+	}
+}

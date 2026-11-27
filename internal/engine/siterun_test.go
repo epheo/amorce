@@ -146,3 +146,47 @@ func TestSiteWorker(t *testing.T) {
 		t.Fatalf("profile %q", st.Profile)
 	}
 }
+
+// A worker serves the first machine's names, so it installs with none.
+func TestSiteNamesWorker(t *testing.T) {
+	file := strings.Replace(header, "site: lab\n", "site: lab\nreport: {address: 10.20.120.10, token: tok}\n", 1) +
+		"    name: virt-02\n    purpose: virtualization\n    address: 10.20.120.12/24\n    profile: worker\n"
+	st := run(t, file, func(s engine.State) bool {
+		return s.Step == engine.StepReady || (s.Site != nil && s.Site.Problem != "")
+	})
+	if st.Step != engine.StepReady || st.Names != (engine.Names{}) {
+		t.Fatalf("step %d, names %+v, problem %q", st.Step, st.Names, st.Site.Problem)
+	}
+}
+
+// The site file answers the names: the domain, the identity provider and
+// its first admin, and the time servers, for the next machines too.
+func TestSiteNames(t *testing.T) {
+	file := strings.Replace(header, "dns: [10.20.0.53]}", "dns: [10.20.0.53], ntp: [10.20.0.53]}\n  domain: lab.example.com\n  identity: kanidm\n  admin: {user: alice, email: alice@example.com}", 1) +
+		"    name: virt-01\n    purpose: virtualization\n    address: 10.20.120.11/24\n"
+	if _, err := site.Parse([]byte(file)); err != nil {
+		t.Fatal(err)
+	}
+	st := run(t, file, func(s engine.State) bool { return s.Step == engine.StepReady })
+	n := st.Names
+	if n.Domain != "lab.example.com" || n.Identity != "kanidm" || n.Admin.User != "alice" || len(st.Net.Config.NTP) != 1 {
+		t.Fatalf("names %+v, ntp %v", n, st.Net.Config.NTP)
+	}
+}
+
+func TestSiteNamesNeedADomain(t *testing.T) {
+	st := run(t, header+"    name: virt-01\n    purpose: virtualization\n    address: 10.20.120.11/24\n"+
+		"    identity: kanidm\n    admin: {user: alice, email: alice@example.com}\n",
+		func(s engine.State) bool { return s.Site != nil && s.Site.Problem != "" })
+	if st.Step != engine.StepName || !strings.Contains(st.Site.Problem, "needs a domain") {
+		t.Fatalf("step %d: %q", st.Step, st.Site.Problem)
+	}
+}
+
+func TestSiteNamesForAnImageWithout(t *testing.T) {
+	st := run(t, header+"    name: k8s-01\n    purpose: kubernetes\n    address: 10.20.120.11/24\n    domain: lab.example.com\n",
+		func(s engine.State) bool { return s.Site != nil && s.Site.Problem != "" })
+	if st.Step != engine.StepName || !strings.Contains(st.Site.Problem, "serves no names") {
+		t.Fatalf("step %d: %q", st.Step, st.Site.Problem)
+	}
+}

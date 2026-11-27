@@ -32,6 +32,13 @@ type State struct {
 	Plan     DiskPlan
 	Hostname string
 
+	// Names are the domain and sign-in, for a purpose that offers names.
+	Names Names
+	// NameChecks are DNS's answers for the names in NameChecksFor.
+	NameChecks    []NameCheck
+	NameChecksFor string
+	NamesChecking bool
+
 	// Site is set when a site file on the media names this machine.
 	Site *SiteRun
 	// SiteFile is the media's site file, kept as is on the installed system.
@@ -152,6 +159,7 @@ func (e *Engine) Snapshot() State {
 	s.Plan.Unused = slices.Clone(s.Plan.Unused)
 	s.Machine.NICs = slices.Clone(s.Machine.NICs)
 	s.Clusters = slices.Clone(s.Clusters)
+	s.NameChecks = slices.Clone(s.NameChecks)
 	if s.Join != nil {
 		j := *s.Join
 		s.Join = &j
@@ -238,6 +246,9 @@ func (e *Engine) ChoosePurpose(id string) {
 func (e *Engine) choosePurpose(s *State, id string) {
 	{
 		if s.PurposeID != id || s.Plan.System == "" {
+			if s.PurposeID != id {
+				s.Names, s.NameChecks, s.NameChecksFor = Names{}, nil, ""
+			}
 			s.PurposeID = id
 			p, _ := s.Purpose()
 			s.Plan = ProposePlan(s.Machine, p)
@@ -299,6 +310,12 @@ func (e *Engine) Install(ctx context.Context, confirm string) error {
 	if !ok {
 		return fmt.Errorf("no purpose chosen")
 	}
+	// A worker serves the first machine's names, not its own.
+	if s.Profile != site.Worker {
+		if msg := CheckNames(p, s.Names); msg != "" {
+			return fmt.Errorf("%s", msg)
+		}
+	}
 	req := InstallRequest{
 		Machine:  s.Machine,
 		Purpose:  p,
@@ -308,6 +325,7 @@ func (e *Engine) Install(ctx context.Context, confirm string) error {
 		Keyboard: s.Keyboard,
 		SSHKeys:  s.SSHKeys,
 		Profile:  s.Profile,
+		Names:    s.Names,
 	}
 	req.Site, _ = siteFor(s)
 	steps := make([]InstallStep, len(InstallSteps))

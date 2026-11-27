@@ -38,7 +38,7 @@ type settingsView struct {
 	net              site.Answers
 	fixed            string // why the network cannot change
 	hasPassword      bool
-	in               [4]input // network: address, gateway, DNS, VLAN; password: twice
+	in               [5]input // network: address, gateway, DNS, VLAN, NTP; password: twice
 	confirm          bool
 	busy             bool
 	note             string
@@ -85,7 +85,7 @@ func (m *Model) keySettings(key string, k tea.KeyPressMsg) tea.Cmd {
 				s.in = networkInputs(s.net)
 			}
 			if s.page == setPassword {
-				s.in = [4]input{}
+				s.in = [5]input{}
 			}
 		}
 	case setNetwork:
@@ -94,9 +94,9 @@ func (m *Model) keySettings(key string, k tea.KeyPressMsg) tea.Cmd {
 		}
 		switch key {
 		case "tab", "down":
-			s.field = (s.field + 1) % 4
+			s.field = (s.field + 1) % len(s.in)
 		case "shift+tab", "up":
-			s.field = (s.field + 3) % 4
+			s.field = (s.field + len(s.in) - 1) % len(s.in)
 		case "enter":
 			a, msg := networkAnswers(s.net, s.in)
 			if msg != "" {
@@ -131,7 +131,7 @@ func (m *Model) keySettings(key string, k tea.KeyPressMsg) tea.Cmd {
 				s.note = "Eight characters at least."
 			case s.in[0].value != s.in[1].value:
 				s.note, s.field = "The two differ; type it again.", 0
-				s.in = [4]input{}
+				s.in = [5]input{}
 			default:
 				s.busy = true
 				st, pw := m.opt.Settings, s.in[0].value
@@ -172,7 +172,7 @@ func (m *Model) settingDone(msg settingDoneMsg) {
 	s.page, s.note = setMenu, msg.note
 }
 
-func networkInputs(a site.Answers) [4]input {
+func networkInputs(a site.Answers) [5]input {
 	var n site.Network
 	if a.Network != nil {
 		n = *a.Network
@@ -181,12 +181,13 @@ func networkInputs(a site.Answers) [4]input {
 	if n.VLAN > 0 {
 		vlan = strconv.Itoa(n.VLAN)
 	}
-	return [4]input{newInput(a.Address), newInput(n.Gateway), newInput(strings.Join(n.DNS, ", ")), newInput(vlan)}
+	return [5]input{newInput(a.Address), newInput(n.Gateway), newInput(strings.Join(n.DNS, ", ")), newInput(vlan),
+		newInput(strings.Join(n.NTP, ", "))}
 }
 
 // networkAnswers reads the form into answers, checked as the installer
 // checks a site file's.
-func networkAnswers(cur site.Answers, in [4]input) (site.Answers, string) {
+func networkAnswers(cur site.Answers, in [5]input) (site.Answers, string) {
 	a := site.Answers{Address: strings.TrimSpace(in[0].value)}
 	n := site.Network{Gateway: strings.TrimSpace(in[1].value)}
 	if cur.Network != nil {
@@ -195,6 +196,7 @@ func networkAnswers(cur site.Answers, in [4]input) (site.Answers, string) {
 	for _, d := range strings.FieldsFunc(in[2].value, func(r rune) bool { return r == ',' || r == ' ' }) {
 		n.DNS = append(n.DNS, d)
 	}
+	n.NTP = strings.FieldsFunc(strings.ToLower(in[4].value), func(r rune) bool { return r == ',' || r == ' ' })
 	if v := strings.TrimSpace(in[3].value); v != "" {
 		vlan, err := strconv.Atoi(v)
 		if err != nil || vlan < 1 || vlan > 4094 {
@@ -235,6 +237,15 @@ func (m *Model) viewSettings() screen {
 			}
 			lines = append(lines, mark+st.Width(16).Render(row)+t.S(t.Muted).Render(values[i]))
 		}
+		if a := s.net; a.Domain != "" || (a.Identity != "" && a.Identity != "none") {
+			signIn := "a token"
+			if a.Identity != "" && a.Identity != "none" {
+				signIn = engine.ProviderName(a.Identity)
+			}
+			lines = append(lines, "", "  "+t.S(t.Muted).Width(16).Render("Domain")+t.S(t.Fg).Render(a.Domain),
+				"  "+t.S(t.Muted).Width(16).Render("Sign-in")+t.S(t.Fg).Render(signIn),
+				"  "+t.S(t.Muted).Render("Set at install: passkeys and accounts are bound to them."))
+		}
 	case setNetwork:
 		lines[0] = t.B(t.Title).Render("Network")
 		iface := ""
@@ -248,10 +259,10 @@ func (m *Model) viewSettings() screen {
 			help = [][2]string{{"esc", "back"}}
 			break
 		}
-		for i, label := range []string{"Address", "Gateway", "DNS", "VLAN"} {
+		for i, label := range []string{"Address", "Gateway", "DNS", "VLAN", "NTP"} {
 			lines = append(lines, t.S(t.Muted).Width(14).Render(label)+m.inputView(s.in[i], i == s.field))
 		}
-		lines = append(lines, "", t.S(t.Muted).Render("An address with its prefix, or dhcp. Gateway and VLAN may stay empty."))
+		lines = append(lines, "", t.S(t.Muted).Render("An address with its prefix, or dhcp. The rest may stay empty."))
 		if s.confirm {
 			lines = append(lines, "", t.S(t.Warn).Render(t.Alert+" ")+
 				t.S(t.Fg).Render(m.home.Name+" restarts to use it; MicroShift keeps its data."),

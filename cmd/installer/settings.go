@@ -91,6 +91,28 @@ func (s *settings) SetNetwork(a site.Answers) error {
 		}
 		written = append(written, p)
 	}
+	if len(cfg.NTP) > 0 || len(old.NTP) > 0 {
+		p := s.path("etc/chrony.conf")
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(p, []byte(live.ChronyConf(string(b), len(cfg.NTP) > 0)), 0o644); err != nil {
+			return err
+		}
+		src := s.path(live.NTPDir + "/installer.sources")
+		os.Remove(src)
+		if len(cfg.NTP) > 0 {
+			if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(src, []byte(live.NTPSources(cfg.NTP)), 0o644); err != nil {
+				return err
+			}
+			written = append(written, src)
+		}
+		written = append(written, p)
+	}
 	name, _ := os.Hostname()
 	p := s.path(live.NodeConfigPath)
 	if err := os.WriteFile(p, []byte(live.NodeConfig(name, cfg)), 0o644); err != nil {

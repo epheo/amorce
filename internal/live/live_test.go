@@ -87,3 +87,27 @@ func TestSetKeyKeepsOtherLines(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// The distro's chrony.conf, as its image ships it.
+const chronyConf = `# Use public servers from the pool.ntp.org project.
+pool 2.centos.pool.ntp.org iburst
+sourcedir /run/chrony-dhcp
+driftfile /var/lib/chrony/drift
+makestep 1.0 3
+`
+
+func TestChronyConf(t *testing.T) {
+	on := ChronyConf(chronyConf, true)
+	if strings.Contains(on, "\npool ") || !strings.Contains(on, "\nsourcedir /"+NTPDir+"\n") || !strings.Contains(on, "sourcedir /run/chrony-dhcp") {
+		t.Fatalf("with servers:\n%s", on)
+	}
+	if again := ChronyConf(on, true); again != on {
+		t.Fatalf("not idempotent:\n%s", again)
+	}
+	if off := ChronyConf(on, false); off != chronyConf {
+		t.Fatalf("without servers, the image's own come back:\n%s", off)
+	}
+	if s := NTPSources([]string{"10.20.0.53", "ntp.lab"}); !strings.Contains(s, "server 10.20.0.53 iburst\nserver ntp.lab iburst\n") {
+		t.Fatalf("sources:\n%s", s)
+	}
+}

@@ -342,6 +342,16 @@ func (s *System) configure(ctx context.Context, deploy string, req engine.Instal
 		files[KeyfileDir+"/"+name+".nmconnection"] = body
 	}
 	var written []string
+	if len(req.Net.NTP) > 0 {
+		files["etc/chrony.conf"] = ChronyConf(readFile(filepath.Join(deploy, "etc/chrony.conf")), true)
+		files[NTPDir+"/installer.sources"] = NTPSources(req.Net.NTP)
+		written = append(written, filepath.Join(deploy, filepath.Dir(NTPDir)))
+	}
+	// A worker serves the first machine's names; the image reads none there.
+	if p := req.Purpose.Settings; p != "" && req.Profile != site.Worker {
+		files[strings.TrimPrefix(p, "/")] = engine.SettingsFile(req.Names)
+		written = append(written, filepath.Join(deploy, filepath.Dir(p)))
+	}
 	if req.Site != nil {
 		files[SitePath] = string(req.Site)
 		written = append(written, filepath.Join(deploy, filepath.Dir(SitePath)))
@@ -500,6 +510,9 @@ func (s *System) writePlan(ctx context.Context, deploy string, req engine.Instal
 		pp := planPool{Name: p.Name, Raid: p.Raid}
 		kinds := map[bool]bool{}
 		for _, n := range p.Disks {
+			if !disks[n].Stable() {
+				return fmt.Errorf("%s has no stable name for %s to find it by", n, req.Purpose.Name)
+			}
 			pp.Devices = append(pp.Devices, disks[n].Path)
 			kinds[disks[n].SSD] = true
 		}

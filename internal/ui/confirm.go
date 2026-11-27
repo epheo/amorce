@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/epheo/amorce/internal/engine"
+	"github.com/epheo/amorce/internal/site"
 )
 
 func (m *Model) keyName(s string, k tea.KeyPressMsg) {
@@ -84,6 +85,10 @@ func (m *Model) viewConfirm() screen {
 		kv("Purpose", p.Name),
 		kv("Network", m.netSummary()),
 	}
+	if p.OffersNames() && st.Profile != site.Worker {
+		domain, signIn := m.namesSummary()
+		lines = append(lines, kv("Domain", domain), kv("Sign-in", signIn))
+	}
 	if d, ok := st.Disk(plan.System); ok {
 		lines = append(lines, kv("System", d.Name+", "+diskKind(d)+" "+humanBytes(d.Size)))
 	}
@@ -107,6 +112,8 @@ func (m *Model) viewConfirm() screen {
 		}
 	}
 	warns = append(warns, m.secureBootWarning(p)...)
+	warns = append(warns, m.dnsWarnings(p)...)
+	warns = append(warns, m.dhcpWarning(st.Names.Domain)...)
 	if len(warns) > 0 {
 		lines = append(lines, "")
 		lines = append(lines, warns...)

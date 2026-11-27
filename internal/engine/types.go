@@ -5,6 +5,7 @@ package engine
 import (
 	"context"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/epheo/amorce/internal/report"
@@ -55,6 +56,10 @@ type Disk struct {
 	Controller string
 }
 
+// Stable says whether Path names this disk at every start: a kernel name
+// can point at another disk on the installed system.
+func (d Disk) Stable() bool { return strings.HasPrefix(d.Path, "/dev/disk/by-id/") }
+
 type NIC struct {
 	Name      string
 	MAC       string
@@ -88,6 +93,43 @@ type Purpose struct {
 	Bytes int64
 	// NeedsSecureBootOff is set when the image cannot run with Secure Boot on.
 	NeedsSecureBootOff bool
+	// Names are what the image serves under the domain the site points at
+	// the machine; with any, the install needs a domain.
+	Names []string
+	// Identity is a sign-in provider the image can install, served under
+	// the domain as IdentityName; it needs a domain.
+	Identity     string
+	IdentityName string
+	// Settings is the file the image reads the names and sign-in from.
+	Settings string
+	// ReservedUsers are names the image's own accounts already hold.
+	ReservedUsers []string
+}
+
+// OffersNames says whether the install asks for a domain.
+func (p Purpose) OffersNames() bool { return len(p.Names) > 0 }
+
+// Names are the answers to an image that offers names.
+type Names struct {
+	// Domain is empty only for an image that serves no names, or a worker.
+	Domain string
+	// Identity is the purpose's provider, or empty for token sign-in.
+	Identity string
+	Admin    Admin
+}
+
+// Admin is the first person the identity provider knows.
+type Admin struct {
+	User    string
+	Display string
+	Email   string
+}
+
+// NameCheck is what the machine's DNS answers for one name under the domain.
+type NameCheck struct {
+	Name  string
+	Addrs []netip.Addr
+	Err   string
 }
 
 type NetMode int
@@ -104,6 +146,8 @@ type NetConfig struct {
 	Address netip.Prefix
 	Gateway netip.Addr
 	DNS     []netip.Addr
+	// NTP are time servers, names or addresses; empty keeps the image's.
+	NTP []string
 }
 
 // Check is one live test result.
@@ -122,6 +166,7 @@ type NetReport struct {
 	Conflict string
 	Gateway  Check
 	DNS      Check
+	NTP      Check
 	// GatewayVLANs lists where the gateway answers instead; 0 is untagged.
 	GatewayVLANs []int
 	At           time.Time
@@ -204,6 +249,8 @@ type InstallRequest struct {
 	// Profile is "worker" for a machine that joins the first machine's
 	// cluster at its first start.
 	Profile string
+	// Names go to the purpose's settings file when it has one.
+	Names Names
 }
 
 // InstallEvent reports install progress from the system to the engine.
@@ -237,6 +284,8 @@ type System interface {
 	// Admit asks the first machine at address to admit this one; the words
 	// are the ones on its screen.
 	Admit(ctx context.Context, address string, words []string, me report.Report) (Admission, error)
+	// Resolve asks the live system's DNS for name's IPv4 addresses.
+	Resolve(ctx context.Context, name string) ([]netip.Addr, error)
 }
 
 // InstallSteps are the install's visible steps, in order.

@@ -115,6 +115,7 @@ func (e *Engine) runSite(ctx context.Context, a site.Answers) {
 	var r NetReport
 	if cfg.Mode == NetDHCP {
 		r = e.sys.Network(ctx)
+		r.Config.NTP = cfg.NTP
 	} else {
 		r = e.sys.TestNetwork(ctx, cfg)
 	}
@@ -159,6 +160,20 @@ func (e *Engine) runSite(ctx context.Context, a site.Answers) {
 	if err := e.SetHostname(a.Name); err != nil {
 		fail(StepName, "Name "+a.Name+": "+err.Error())
 		return
+	}
+	// A worker serves the first machine's names, not its own.
+	if a.Profile != site.Worker {
+		n := Names{Domain: a.Domain, Identity: a.Identity}
+		if n.Identity == "none" {
+			n.Identity = ""
+		}
+		if a.Admin != nil {
+			n.Admin = Admin{User: a.Admin.User, Display: a.Admin.Display, Email: a.Admin.Email}
+		}
+		if msg := e.SetNames(ctx, n); msg != "" {
+			fail(StepName, msg)
+			return
+		}
 	}
 
 	erase := "blank"
@@ -207,7 +222,10 @@ func SiteNet(a site.Answers, m Machine) (NetConfig, string) {
 	if a.Network != nil {
 		n = *a.Network
 	}
-	c := NetConfig{Iface: n.Interface, VLAN: n.VLAN}
+	c := NetConfig{Iface: n.Interface, VLAN: n.VLAN, NTP: n.NTP}
+	if msg := CheckNTP(n.NTP); msg != "" {
+		return c, msg
+	}
 	if c.Iface == "" {
 		for _, nic := range m.NICs {
 			if nic.Carrier {
@@ -353,7 +371,12 @@ func siteDefaults(s State) site.Answers {
 	for _, a := range c.DNS {
 		n.DNS = append(n.DNS, a.String())
 	}
+	n.NTP = c.NTP
 	d.Network = &n
+	d.Domain, d.Identity = s.Names.Domain, s.Names.Identity
+	if a := s.Names.Admin; a != (Admin{}) {
+		d.Admin = &site.Admin{User: a.User, Display: a.Display, Email: a.Email}
+	}
 	return d
 }
 

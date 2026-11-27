@@ -30,6 +30,8 @@ func (m *Model) diskRow(prefix string, d engine.Disk) string {
 		note = t.S(t.Bad).Render(d.Health)
 	case d.Holds != "":
 		note = t.S(t.Warn).Render("has " + d.Holds)
+	case !d.Stable():
+		note = t.S(t.Warn).Render("no stable name, never data")
 	case d.Health != "":
 		note = t.S(t.Warn).Render(d.Health)
 	}

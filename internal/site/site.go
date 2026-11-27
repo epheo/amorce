@@ -76,6 +76,19 @@ type Answers struct {
 	// Profile is the distro's: controller, the default, runs its own
 	// cluster; worker joins the first machine's.
 	Profile string `yaml:"profile,omitempty"`
+	// Domain is where the site's DNS points this machine's names; an image
+	// that serves names requires it.
+	Domain string `yaml:"domain,omitempty"`
+	// Identity is the sign-in provider the image installs; it needs a domain.
+	Identity string `yaml:"identity,omitempty"`
+	// Admin is the provider's first person.
+	Admin *Admin `yaml:"admin,omitempty"`
+}
+
+type Admin struct {
+	User    string `yaml:"user,omitempty"`
+	Display string `yaml:"display,omitempty"`
+	Email   string `yaml:"email,omitempty"`
 }
 
 // Worker is the profile of a machine that joins the first machine's cluster.
@@ -86,6 +99,7 @@ type Network struct {
 	VLAN      int      `yaml:"vlan,omitempty"`
 	Gateway   string   `yaml:"gateway,omitempty"`
 	DNS       []string `yaml:"dns,omitempty"`
+	NTP       []string `yaml:"ntp,omitempty"`
 }
 
 type Disks struct {
@@ -217,6 +231,11 @@ func merge(d, m Answers) Answers {
 	out.Keyboard = or(m.Keyboard, d.Keyboard)
 	out.Address = or(m.Address, d.Address)
 	out.Profile = or(m.Profile, d.Profile)
+	out.Domain = or(m.Domain, d.Domain)
+	out.Identity = or(m.Identity, d.Identity)
+	if out.Admin == nil {
+		out.Admin = d.Admin
+	}
 	if out.SSHKeys == nil {
 		out.SSHKeys = d.SSHKeys
 	}
@@ -236,6 +255,9 @@ func merge(d, m Answers) Answers {
 		n.Gateway = or(mn.Gateway, dn.Gateway)
 		if n.DNS == nil {
 			n.DNS = dn.DNS
+		}
+		if n.NTP == nil {
+			n.NTP = dn.NTP
 		}
 		out.Network = &n
 	}
