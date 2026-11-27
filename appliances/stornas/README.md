@@ -19,8 +19,12 @@ it as the Storage purpose.
 ./build.sh ghcr.io/epheo/stornas-os:<tag>
 ```
 
-From a stornas checkout, after its `make images`:
+From a stornas checkout, after its `make sync-manifests images`, as the
+same user:
 
 ```
 STORNAS_SRC=../stornas ./build.sh
 ```
+
+- `PODMAN` names the podman whose storage holds the components (`podman` by default).
+- A pin set non-empty in the environment wins over `versions.env`, for local builds.
