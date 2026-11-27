@@ -6,7 +6,9 @@ name: installer
 on:
   push:
     branches: [main]
+    paths-ignore: ["appliances/**"]
   pull_request:
+    paths-ignore: ["appliances/**"]
   workflow_dispatch:
 
 permissions:
@@ -14,8 +16,10 @@ permissions:
 
 env:
   IMAGE: ghcr.io/epheo/amorce
-  COSIGN_VERSION: v3.1.6
-  COSIGN_SHA256: 318a99ade4156a0c4113aa983b46c0a0830fa7896a096c63121ee47b610a94c6
+  # dotvirt's proven version: containers/image, so bootc and CRI-O, reads
+  # only the legacy .sig tag with a Rekor v1 SET.
+  COSIGN_VERSION: v3.1.4
+  COSIGN_SHA256: 424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa
 
 jobs:
   image:
@@ -54,7 +58,6 @@ jobs:
           echo "$TOKEN" | sudo podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           echo "$TOKEN" | cosign login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           sudo podman push --digestfile "$RUNNER_TEMP/digest" "$IMAGE:$GITHUB_SHA"
-          sudo podman push "$IMAGE:$GITHUB_SHA" "docker://$IMAGE:latest"
           ref="$IMAGE@$(cat "$RUNNER_TEMP/digest")"
           # The legacy layout: containers/image, so bootc and CRI-O, reads
           # only that one.
@@ -62,4 +65,8 @@ jobs:
           cosign verify --new-bundle-format=false \
             --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com "$ref" >/dev/null
-          echo "$ref, signed by $GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" >> "$GITHUB_STEP_SUMMARY"
+          # latest last, as the very digest signed: never an unsigned or
+          # re-encoded image under it.
+          skopeo copy --preserve-digests "docker://$ref" "docker://$IMAGE:latest"
+          [ "$(skopeo inspect --format '{{.Digest}}' "docker://$IMAGE:latest")" = "$(cat "$RUNNER_TEMP/digest")" ]
+          echo "$ref, signed by $GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF, is latest" >> "$GITHUB_STEP_SUMMARY"
