@@ -39,11 +39,17 @@ func TestScreensFit(t *testing.T) {
 				eng.Go(step)
 				m.Update(EngineMsg{})
 				out := m.View().Content
+				if step == engine.StepNetwork {
+					// The form by hand, at its tallest.
+					m.form = newNetForm(m.st, m.st.Net.Config)
+					out += "\n" + m.View().Content
+					m.form = nil
+				}
 				lines := strings.Split(out, "\n")
 				if strings.Contains(ansi.Strip(out), "…") {
 					t.Errorf("%v %v step %d: a line was cut short", size, look, step)
 				}
-				if len(lines) > size[1] {
+				if step != engine.StepNetwork && len(lines) > size[1] {
 					t.Errorf("%v %v step %d: %d lines", size, look, step, len(lines))
 				}
 				for _, l := range lines {

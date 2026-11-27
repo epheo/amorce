@@ -86,7 +86,7 @@ wait_screen "$pre-3" "On this media" 240
 wait_screen "$pre-3" "No DHCP server answered" 120
 "$v" key "$pre-3" enter
 wait_screen "$pre-3" "Interface" 10
-"$v" key "$pre-3" enter enter 10.99.0.23/24 enter enter enter
+"$v" key "$pre-3" enter enter 10.99.0.23/24 enter enter enter enter
 wait_screen "$pre-3" "Continue with these settings" 60
 "$v" key "$pre-3" enter
 wait_screen "$pre-3" "Join store-01" 60

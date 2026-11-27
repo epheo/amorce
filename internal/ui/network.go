@@ -506,7 +506,7 @@ func (m *Model) formView() []string {
 	t := m.t
 	f := m.form
 	out := []string{t.B(t.Title).Render("Settings for the installed system"),
-		t.S(t.Muted).Render("VLAN empty: untagged. NTP empty: the image's time servers."), ""}
+		t.S(t.Muted).Render("VLAN empty: untagged."), t.S(t.Muted).Render("NTP empty: the image's time servers."), ""}
 	for i, label := range formLabels {
 		lab := t.S(t.Muted).Width(11).Render(label)
 		var val string

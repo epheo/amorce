@@ -32,7 +32,7 @@ step "network: no DHCP"
 wait_for "No DHCP server answered" 120
 "$v" key "$vm" enter
 wait_for "Interface" 10
-"$v" key "$vm" enter enter 10.99.0.11/24 enter enter enter
+"$v" key "$vm" enter enter 10.99.0.11/24 enter enter enter enter
 step "network: no gateway"
 wait_for "only 10.99.0.0/24 is in reach" 60
 wait_for "Continue with these settings" 5
