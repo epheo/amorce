@@ -1,0 +1,4 @@
+# Written by dotvirt-appliance setup for IDENTITY=kanidm. MicroShift refuses
+# to start without the file it names, which setup writes first.
+apiServer:
+  authenticationConfig: /etc/microshift/dotvirt-appliance-authentication.yaml

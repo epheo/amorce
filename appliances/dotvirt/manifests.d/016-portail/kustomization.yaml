@@ -1,0 +1,8 @@
+# portail, the Gateway API implementation the base ships the image of.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - controller.yaml
+  - gatewayclass.yaml

@@ -1,0 +1,18 @@
+[Unit]
+Description=dotvirt appliance: Kanidm's clients and the first admin
+ConditionPathExists=/etc/dotvirt/appliance.env
+Wants=microshift.service
+After=microshift.service dotvirt-appliance-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecCondition=/bin/grep -qx IDENTITY=kanidm /etc/dotvirt/appliance.env
+ExecStart=/usr/libexec/dotvirt-appliance/identity
+# The first start imports every image and provisions Kanidm's volumes.
+TimeoutStartSec=45min
+Restart=on-failure
+RestartSec=1min
+
+[Install]
+WantedBy=multi-user.target

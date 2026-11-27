@@ -1,0 +1,8 @@
+[Unit]
+Description=dotvirt appliance: certificates near their end, renewed
+ConditionPathExists=/etc/dotvirt/appliance.env
+After=microshift.service dotvirt-appliance-setup.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/dotvirt-appliance/setup renew

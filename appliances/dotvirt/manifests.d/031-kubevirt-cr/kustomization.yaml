@@ -1,0 +1,12 @@
+# Its own unit: the CR cannot apply before the operator's CRD.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - kubevirt-cr.yaml
+patches:
+  - target: {kind: KubeVirt, name: kubevirt}
+    patch: |-
+      - op: add
+        path: /spec/infra
+        value:
+          replicas: 1

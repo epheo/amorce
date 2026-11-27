@@ -1,0 +1,26 @@
+# IDENTITY=kanidm: the console and the forge sign people in through Kanidm.
+# Kanidm gives each client its own issuer. The client secrets come from
+# identity, once Kanidm is up: until then both pods wait on them.
+apiVersion: dotvirt.io/v1alpha1
+kind: Dotvirt
+metadata:
+  name: dotvirt
+  namespace: dotvirt-operator
+spec:
+  auth:
+    oidc:
+      issuerURL: https://idm.@DOMAIN@/oauth2/openid/dotvirt
+      clientID: dotvirt
+      clientSecret: {name: dotvirt-oidc, key: secret}
+      # groups_name: short group names, which the apiserver maps.
+      scopes: [profile, groups_name]
+      ca: {name: machine-ca, key: ca.crt}
+  forge:
+    oidc:
+      issuerURL: https://idm.@DOMAIN@/oauth2/openid/git
+      clientID: git
+      clientSecret: {name: dotvirt-forge-oidc, key: secret}
+      scopes: [profile, email, groups_name]
+      groupClaimName: groups
+      adminGroup: dotvirt_admins
+      ca: {name: machine-ca, key: ca.crt}

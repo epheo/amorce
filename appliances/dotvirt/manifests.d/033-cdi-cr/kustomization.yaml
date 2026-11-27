@@ -1,0 +1,5 @@
+# Its own unit: the CR cannot apply before the operator's CRD.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cdi-cr.yaml

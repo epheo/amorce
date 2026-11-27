@@ -1,0 +1,24 @@
+# The community manifests pin fixed non-root UIDs (redis 999, dex), which
+# restricted-v2 refuses; nonroot-v2 is the narrowest SCC that admits them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-scc-nonroot-v2
+rules:
+  - apiGroups: ["security.openshift.io"]
+    resources: ["securitycontextconstraints"]
+    resourceNames: ["nonroot-v2"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-scc-nonroot-v2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-scc-nonroot-v2
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:serviceaccounts:argocd

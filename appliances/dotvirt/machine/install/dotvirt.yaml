@@ -1,0 +1,27 @@
+# The install, in the operator's own namespace: the console and a managed
+# forge, each on its name at the edge; clones, Argo and webhooks stay on
+# in-cluster URLs.
+apiVersion: dotvirt.io/v1alpha1
+kind: Dotvirt
+metadata:
+  name: dotvirt
+  namespace: dotvirt-operator
+spec:
+  ingress:
+    type: gateway
+    host: console.@DOMAIN@
+    gateway:
+      name: edge
+      namespace: dotvirt-edge
+      sectionName: console
+  forge:
+    managed: true
+    url: http://dotvirt-forgejo.dotvirt-operator.svc.cluster.local:3000
+    webURL: https://git.@DOMAIN@
+    gateway:
+      name: edge
+      namespace: dotvirt-edge
+      sectionName: git
+  argocd:
+    namespace: argocd
+    serverURL: http://argocd-server.argocd.svc.cluster.local

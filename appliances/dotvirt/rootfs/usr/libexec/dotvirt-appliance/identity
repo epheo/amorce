@@ -1,0 +1,68 @@
+#!/bin/bash
+# identity [invite]: with IDENTITY=kanidm, once Kanidm is up: its clients for
+# the console and the forge, whose secrets go to dotvirt's namespace, the
+# dotvirt_admins group, and the first admin, with an invite link on the
+# screen at the first run. Safe to rerun. invite: a new link.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+read_settings "$SETTINGS"
+[ "$IDENTITY" = kanidm ] || fail "this machine signs in with tokens: no Kanidm"
+invite=${1:-}
+[ -e "$STATE/invited" ] || invite=invite
+
+# The first start imports images and provisions volumes first.
+oc -n kanidm rollout status deploy/kanidm --timeout=30m >&2
+# A new idm_admin password every run: none is ever stored.
+password=$(oc -n kanidm exec deploy/kanidm -- kanidmd scripting recover-account idm_admin |
+    jq -rR 'fromjson? | select(.status? == "ok") | .output')
+[[ $password =~ ^[A-Za-z0-9]+$ ]] || fail "kanidmd gave no idm_admin password"
+# The Service's address, not the site's DNS, which may not be set yet; the
+# certificate still names idm.<domain>.
+ip=$(oc -n kanidm get service kanidm -o jsonpath='{.spec.clusterIP}')
+
+# The password goes in on stdin, never in argv or the container's config;
+# sh reads its script from there too, so it is a line of it.
+out=$({
+    printf 'export KANIDM_PASSWORD=%s\n' "$password"
+    cat "$SHARE/kanidm-bootstrap.sh"
+} | podman run --rm -i --pull=never --network host --add-host "idm.$DOMAIN:$ip" \
+    -v "$STATE/ca.crt:/ca.crt:ro,z" \
+    -e KANIDM_URL="https://idm.$DOMAIN" -e KANIDM_CA_PATH=/ca.crt -e KANIDM_NAME=idm_admin \
+    -e "DOMAIN=$DOMAIN" -e "ADMIN_USER=$ADMIN_USER" -e "ADMIN_DISPLAY=$ADMIN_DISPLAY" \
+    -e "ADMIN_EMAIL=$ADMIN_EMAIL" -e "INVITE=$invite" \
+    "$(cat "$SHARE/kanidm-tools-image")" sh -s)
+
+secret() {
+    [[ $2 =~ ^[A-Za-z0-9]+$ ]] || fail "Kanidm gave no secret for $1"
+    printf '%s\n' "apiVersion: v1" "kind: Secret" "metadata:" "  name: $1" "  namespace: dotvirt-operator" \
+        "stringData:" "  secret: $2" | oc apply -f - >/dev/null
+}
+link="" expires=""
+while read -r kind value; do
+    case $kind in
+    dotvirt) secret dotvirt-oidc "$value" ;;
+    git) secret dotvirt-forge-oidc "$value" ;;
+    link) link=$value ;;
+    expires) expires=$value ;;
+    esac
+done <<<"$out"
+
+if [ -n "$invite" ]; then
+    [ -n "$link" ] || fail "Kanidm gave no invite link for $ADMIN_USER"
+    end=$(date -u -d "$expires" '+%Y-%m-%d %H:%M:%S UTC') || fail "Kanidm gave no end for the invite: $expires"
+    # The console shows the file while it exists; a backslash would drop the line.
+    [[ $link != *\\* ]] || fail "Kanidm's invite link holds a backslash"
+    issue=$ISSUES/51-dotvirt-invite.issue
+    mkdir -p "$ISSUES"
+    cat >"$issue.new" <<ISSUE
+For $ADMIN_USER, to set a passkey or a password: $link
+It ends $end, and only its last opening counts.
+ISSUE
+    mv "$issue.new" "$issue"
+    # One timer: an earlier invite's would remove this one's file early.
+    systemctl stop dotvirt-appliance-invite-end.timer 2>/dev/null || :
+    systemd-run --quiet --collect --unit=dotvirt-appliance-invite-end --on-calendar="$end" rm -f "$issue"
+    touch "$STATE/invited"
+    echo "invite for $ADMIN_USER on the screen until $end"
+fi
