@@ -110,6 +110,11 @@ func CheckEmail(s string) string {
 			return "An email looks like alice@example.com, ASCII only."
 		}
 	}
+	// Before lowercasing: Unicode folds some runes to ASCII (the Kelvin sign
+	// to k), and the address is written as typed.
+	if strings.IndexFunc(domain, func(r rune) bool { return r > unicode.MaxASCII }) >= 0 {
+		return "An email looks like alice@example.com, ASCII only."
+	}
 	if dnsName(strings.ToLower(domain)) != "" {
 		return "The email's domain is not a domain."
 	}
