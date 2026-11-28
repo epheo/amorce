@@ -444,6 +444,7 @@ machines:
 - `test/vm/host.sh`: makes a GitHub ubuntu-24.04 runner a test host, as root.
 - CI (`appliances.yml`), on every change: each appliance built from its `versions.env`, installed by this commit's installer in a VM on the runner.
   - stornas: an unattended site install (`site.sh`), then both mirrored pairs Online (`pools.sh`).
+  - dotvirt: each first sign-in (none, kanidm) on its own machine (`virt.sh`): the console and the forge by name, sign-in as the appliance gives it.
 
 ## Failure cases
 

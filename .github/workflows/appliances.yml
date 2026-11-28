@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   appliance:
-    name: appliance (${{ matrix.leg }})
+    name: appliance (${{ matrix.leg }}${{ matrix.signin && format(', {0}', matrix.signin) || '' }})
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     strategy:
@@ -24,8 +24,18 @@ jobs:
         include:
           - leg: stornas
             image: localhost/stornas-os:ci
+          # Each first sign-in, on its own machine: a token from the machine,
+          # or Kanidm's invite on its screen.
+          - leg: dotvirt
+            image: localhost/dotvirt-appliance:ci
+            signin: none
+            payload: msi-virt-payload.iso
+          - leg: dotvirt
+            image: localhost/dotvirt-appliance:ci
+            signin: kanidm
+            payload: msi-virt-payload.iso
     concurrency:
-      group: appliances-${{ matrix.leg }}-${{ github.ref }}
+      group: appliances-${{ matrix.leg }}-${{ matrix.signin }}-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     env:
       STATE: /var/tmp/amorce-vm
@@ -41,6 +51,8 @@ jobs:
       - name: build
         run: sudo appliances/${{ matrix.leg }}/build.sh ${{ matrix.image }}
       - name: media
+        env:
+          PAYLOAD: ${{ matrix.payload }}
         run: sudo -E test/vm/media.sh ${{ matrix.image }}
       - name: unattended install
         if: matrix.leg == 'stornas'
@@ -56,13 +68,18 @@ jobs:
           done
           echo "$pools"
           [ "$(grep -c ' Online$' <<<"$pools")" = 2 ]
+      # Installed from embedded images with no registry in reach, the
+      # console and the forge answer by name under the machine's CA.
+      - name: dotvirt up
+        if: matrix.leg == 'dotvirt'
+        run: sudo -E test/vm/virt.sh msi-virt 4556 ${{ matrix.signin }}
       - name: logs
         if: failure()
         run: sudo chmod -R a+rX "$STATE"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: ${{ matrix.leg }}-vm
+          name: ${{ matrix.leg }}${{ matrix.signin && format('-{0}', matrix.signin) || '' }}-vm
           # The repo is public: no VM's ssh key.
           path: |
             /var/tmp/amorce-vm
