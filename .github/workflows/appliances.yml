@@ -63,5 +63,8 @@ jobs:
         if: failure()
         with:
           name: ${{ matrix.leg }}-vm
-          path: /var/tmp/amorce-vm
+          # The repo is public: no VM's ssh key.
+          path: |
+            /var/tmp/amorce-vm
+            !/var/tmp/amorce-vm/**/id
           retention-days: 7
