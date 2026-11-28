@@ -427,6 +427,7 @@ machines:
 - `test/vm/edge.sh VM PORT`: a PERC RAID volume and a network with no DHCP and no gateway.
 - `test/vm/site.sh VM PORT`: site media name the VM by serial; no key is pressed until the install is done; the installed system keeps the answers.
 - `test/vm/media.sh BASE`: the installer ISO, and a payload of the OS image BASE with the installed console added as the distro adds it (`console.Containerfile`).
+  - `CONSOLE=image`: BASE as published, with the console its distro base carries.
 - `test/vm/fleet.sh PREFIX PORT`: two VMs of one site; the second reports installing, installed, then running to the first one's console.
 - `PAYLOAD=msi-mok-payload.iso test/vm/media.sh ghcr.io/epheo/microshift:latest`, then `test/vm/mok.sh VM PORT`: the distro's published image, its DRBD signed with the project key; Secure Boot on; an unattended install queues the key, MokManager takes the password Ready shows, and the installed system loads DRBD signed by that key under lockdown.
 - `test/vm/settings.sh VM PORT`: over SSH to an installed console, a root password and a new address; the machine restarts on it, MicroShift and the UI follow, the password logs in, and F2 opens the settings on tty1. `ptydrive.py` drives the SSH session.
@@ -439,6 +440,10 @@ machines:
 - `test/vm/join.sh PREFIX PORT`: three VMs, one cluster. The site file installs the first machine and a worker side by side; a third machine without the site file joins with the words read off the first machine's screen; all three nodes must be Ready.
 - `test/vm/pools.sh VM`: the pools the installed stornas built from the plan, through its API.
 - `test/vm/vm.sh shot VM FILE`: the VM's screen, to check the styled console.
+- `CPUSET=8-15` pins every test VM to those CPUs; `OSINFO` overrides `centos-stream10` for an older osinfo-db.
+- `test/vm/host.sh`: makes a GitHub ubuntu-24.04 runner a test host, as root.
+- CI (`appliances.yml`), on every change: each appliance built from its `versions.env`, installed by this commit's installer in a VM on the runner.
+  - stornas: an unattended site install (`site.sh`), then both mirrored pairs Online (`pools.sh`).
 
 ## Failure cases
 

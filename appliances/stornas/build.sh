@@ -10,7 +10,7 @@ if [ -n "${STORNAS_SRC:-}" ]; then
 fi
 PODMAN=${PODMAN:-podman}
 cd "$(dirname "$0")"
-eval "$(sed -n 's/^\([A-Z_]*\)=\(.*\)$/: "${\1:=\2}"/p' versions.env)"
+eval "$(sed -n 's/^\([A-Z][A-Z0-9_]*\)=\(.*\)$/: "${\1:=\2}"/p' versions.env)"
 echo "base: $BASE_IMAGE"
 rm -rf build
 mkdir -p build/embedded-images

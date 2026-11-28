@@ -1,0 +1,70 @@
+# The appliance images the installer offers, each built from its pins
+# (appliances/<leg>/versions.env), then installed by this commit's
+# installer in a VM on the runner and checked as its user finds it.
+# Every change runs it: the installer and the appliances ship together.
+name: appliances
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  appliance:
+    name: appliance (${{ matrix.leg }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: stornas
+            image: localhost/stornas-os:ci
+    concurrency:
+      group: appliances-${{ matrix.leg }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      STATE: /var/tmp/amorce-vm
+      OUT: /var/tmp/amorce-media
+      # The image as published: the console its distro base carries.
+      CONSOLE: image
+      OSINFO: centos-stream9
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: test host
+        run: sudo test/vm/host.sh
+      # Root, as the distro's CI builds bootc images.
+      - name: build
+        run: sudo appliances/${{ matrix.leg }}/build.sh ${{ matrix.image }}
+      - name: media
+        run: sudo -E test/vm/media.sh ${{ matrix.image }}
+      - name: unattended install
+        if: matrix.leg == 'stornas'
+        run: sudo -E test/vm/site.sh msi-ci 4555
+      # The plan's data disks: four HDDs, two mirrored pairs.
+      - name: pools Online
+        if: matrix.leg == 'stornas'
+        run: |
+          for _ in $(seq 1 60); do
+            pools=$(sudo -E test/vm/pools.sh msi-ci || true)
+            [ "$(grep -c ' Online$' <<<"$pools")" = 2 ] && break
+            sleep 10
+          done
+          echo "$pools"
+          [ "$(grep -c ' Online$' <<<"$pools")" = 2 ]
+      - name: logs
+        if: failure()
+        run: sudo chmod -R a+rX "$STATE"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: ${{ matrix.leg }}-vm
+          # The repo is public: no VM's ssh key.
+          path: |
+            /var/tmp/amorce-vm
+            !/var/tmp/amorce-vm/**/id
+          retention-days: 7
